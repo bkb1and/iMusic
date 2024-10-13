@@ -35,7 +35,9 @@ class iMusic(QMainWindow):
         self.play_lists = []
         self.stack = QStackedWidget(self)
         self.init_ui()
+        self.load_playlists_from_db()
     
+    """初始化ui"""
     def init_ui(self):
         """全局样式"""
         self.setWindowTitle("iMusic")
@@ -202,22 +204,6 @@ class iMusic(QMainWindow):
         play_list_layout = QVBoxLayout()
         play_list_layout.setObjectName("play_list_layout")
         play_list_layout.addLayout(create_row)
-        # 示例歌单
-        # self.play_lists = ["Jazz", "Pop"]
-        # for play_list in self.play_lists:
-        #     button = QPushButton(f"🎵 {play_list}")
-        #     button.setStyleSheet("""
-        #         QPushButton {
-        #             font-size: 16px;
-        #             padding: 12px 5px;
-        #             margin: 2px 0;
-        #         }
-        #         QPushButton:hover {
-        #             background-color: #e6e6e6;
-        #         }
-        #     """)
-        #     button.clicked.connect(lambda: self.display(self.stack.indexOf(self.playlist)))
-        #     play_list_layout.addWidget(button)
         left_layout.addLayout(play_list_layout)
         left_layout.addStretch(1)
         master_layout.addWidget(left_sidebar, 2)
@@ -264,6 +250,7 @@ class iMusic(QMainWindow):
         self.stack.setCurrentWidget(self.homepage)
         master_layout.addWidget(content_area, 8)
     
+    """主页和推荐页面的布局"""
     def homepageUI(self):
         layout = QVBoxLayout(self.homepage)
 
@@ -329,9 +316,7 @@ class iMusic(QMainWindow):
 
         layout.addLayout(playlist_grid)
 
-    def selectedUI(self):
-        pass
-
+    """所有新创建的歌单的模板布局"""
     def playlistUI_template(self, playlist_name, playlist_widget):
         layout = QVBoxLayout(playlist_widget)
         header_layout = QHBoxLayout()
@@ -403,9 +388,11 @@ class iMusic(QMainWindow):
         layout.addWidget(song_list)
         self.load_songs_from_playlist(playlist_name, song_list)
         
+    """再点击按钮后将内容区域的页面切换到对应的部件"""
     def display(self, i):
         self.stack.setCurrentIndex(i)
 
+    """在第一次启动客户端时建立数据库，后面启动时打开数据库"""
     def create_db(self):
         """建立数据库"""
         self.db = QSqlDatabase.addDatabase("QSQLITE")
@@ -424,6 +411,7 @@ class iMusic(QMainWindow):
         )
     """)
 
+    """弹出QFileDialog来选中并导入本地存在的音频媒体文件"""
     def add_song(self, song_list, playlist_name):
         file_path, _ = QFileDialog.getOpenFileName(self, "选择歌曲文件", "", "Audio Files (*.mp3 *.wav *.flac *.m4a)")
         print(file_path)
@@ -432,6 +420,7 @@ class iMusic(QMainWindow):
             self.add_song_to_playlist(playlist_name, title, '', '', file_path)
             song_list.addItem(title)
 
+    """把导入的歌的相关信息存到数据库中对应的歌单的表"""
     def add_song_to_playlist(self, playlist_name, title, artist, album, filepath):
         # 先从 playlists 表获取歌单对应的表名
         query = QSqlQuery(self.db)
@@ -464,6 +453,7 @@ class iMusic(QMainWindow):
         else:
             print("Insert failed:", query.lastError().text())
 
+    """在选中某个歌单后从数据库表中加载对应歌单中已经存在的歌"""
     def load_songs_from_playlist(self, playlist_name, song_list):
         # 从 playlists 表中获取歌单对应的表名
         query = QSqlQuery(self.db)
@@ -487,6 +477,7 @@ class iMusic(QMainWindow):
         else:
             print(f"No table found for playlist: {playlist_name}")
 
+    """播放歌单中被选中的歌"""
     def play_selected_song(self, song_list, current_playlist_name):
         selected_item = song_list.currentItem()
         if selected_item:
@@ -513,6 +504,7 @@ class iMusic(QMainWindow):
             else:
                 print(f"No table found for playlist: {current_playlist_name}")
 
+    """利用pygame模块中的方法播放音频媒体文件"""
     def play_song(self, filepath):
         try:
             pygame.mixer.init()
@@ -522,12 +514,19 @@ class iMusic(QMainWindow):
         except Exception as e:
             print("Error playing song:", e)  # 捕捉播放错误
 
+    """创建新的歌单后在数据库内创建对应的新的歌单的数据表"""
     def create_table_new_playlist(self, playlist_name):
         """创建歌单时动态生成数据表"""
         table_name = f"playlist_{playlist_name.replace(' ', '_')}"
         
         """将歌单信息存储到 playlists 主表"""
         query = QSqlQuery(self.db)
+
+        """在客户端启动载入已有歌单时，增加检查逻辑，如果数据库中已经存在同样名字的表，那么不创建新的表直接返回"""
+        query.exec_(f"SELECT name FROM playlists WHERE name='{playlist_name}';")
+        if query.next():
+            return
+
         query.prepare("INSERT INTO playlists (name, table_name) VALUES (?, ?)")
         query.addBindValue(playlist_name)
         query.addBindValue(table_name)
@@ -547,15 +546,18 @@ class iMusic(QMainWindow):
             )
         """)
 
+    """再点击'+'后弹出窗口来创建新的歌单"""
     def create_new_play_list(self):
         text, ok = QInputDialog.getText(self, '新歌单', '请输入歌单名称:')
         if ok and text:
             self.play_lists.append(text)
             new_playlist_page = QWidget()
+            new_playlist_page.setObjectName(text)
             self.playlistUI_template(text, new_playlist_page)
             self.stack.addWidget(new_playlist_page)
             self.add_playlist_button(text, new_playlist_page)
 
+    """在创建新的歌单之后在左侧边栏添加一个新的按钮"""
     def add_playlist_button(self, playlist_name, new_playlist_page):
         button = QPushButton(f"🎵 {playlist_name}")
         button.setStyleSheet("""
@@ -571,6 +573,19 @@ class iMusic(QMainWindow):
         button.clicked.connect(lambda: self.display(self.stack.indexOf(new_playlist_page)))
         play_list_layout = self.findChild(QVBoxLayout, "play_list_layout")
         play_list_layout.addWidget(button)
+
+    """在客户端启动时自动加载数据库中原先已创建的歌单"""
+    def load_playlists_from_db(self):
+        query = QSqlQuery(self.db)
+        query.exec_("SELECT name FROM playlists")
+        
+        while query.next():
+            playlist_name = query.value(0)
+            new_playlist_page = QWidget()
+            new_playlist_page.setObjectName(playlist_name)
+            self.playlistUI_template(playlist_name, new_playlist_page)
+            self.stack.addWidget(new_playlist_page)
+            self.add_playlist_button(playlist_name, new_playlist_page)
 
 
 if __name__ in "__main__":
