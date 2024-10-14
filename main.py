@@ -151,6 +151,8 @@ class iMusic(QMainWindow):
             """)
             if button_text == "推荐":
                 button.clicked.connect(lambda: self.display(self.stack.indexOf(self.homepage)))
+            elif button_text == "精选":
+                button.clicked.connect(lambda: self.display(self.stack.indexOf(self.selected)))
             nav_layout.addWidget(button)
         left_layout.addLayout(nav_layout)
 
@@ -238,9 +240,9 @@ class iMusic(QMainWindow):
         self.stack.addWidget(self.homepage)
 
         """精选"""
-        # self.selected = QWidget()
-        # self.selectedUI()
-        # self.stack.addWidget(self.selected)
+        self.selected = QWidget()
+        self.selectedUI()
+        self.stack.addWidget(self.selected)
 
         """歌单"""
         # self.playlist = QWidget()
@@ -541,6 +543,8 @@ class iMusic(QMainWindow):
 
     """创建新的歌单后在数据库内创建对应的新的歌单的数据表"""
     def create_table_new_playlist(self, playlist_name):
+        if playlist_name == "精选歌单":
+            return
         """创建歌单时动态生成数据表"""
         table_name = f"playlist_{playlist_name.replace(' ', '_')}"
         
@@ -549,6 +553,7 @@ class iMusic(QMainWindow):
 
         """在客户端启动载入已有歌单时，增加检查逻辑，如果数据库中已经存在同样名字的表，那么不创建新的表直接返回"""
         query.exec_(f"SELECT name FROM playlists WHERE name='{playlist_name}';")
+        
         if query.next():
             return
 
@@ -647,6 +652,62 @@ class iMusic(QMainWindow):
         # 更新图片索引
         self.current_image_index = (self.current_image_index + 1) % len(self.images)
 
+    """精选的布局"""
+    def selectedUI(self):
+        layout = QVBoxLayout(self.selected)
+        header_layout = QHBoxLayout()
+        
+        """歌单封面"""
+        cover_label = QLabel()
+        cover_label.setFixedSize(150, 150)
+        cover_label.setStyleSheet("""
+            background-color: #e1e1e1;
+            border-radius: 10px;
+        """)
+        header_layout.addWidget(cover_label)
+        
+        info_layout = QVBoxLayout()
+        
+        """歌单标题"""
+        playlist_title = QLabel('精选歌单')
+        playlist_title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        info_layout.addWidget(playlist_title)
+        
+        """歌曲列表"""
+        song_list = QListWidget()
+        self.create_table_new_playlist('精选歌单')
+
+        """按钮"""
+        play_button = QPushButton("播放歌曲")
+        play_button.setStyleSheet("""
+            QPushButton {
+                background-color: #e1e1e1;
+                color: #333;
+                padding: 6px 12px;
+                font-size: 14px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #c6c6c6;
+            }
+        """)
+
+        info_layout.addWidget(play_button)
+        
+        play_button.clicked.connect(lambda: self.play_selected_song(song_list, '精选歌单'))
+
+        header_layout.addLayout(info_layout)
+        layout.addLayout(header_layout)
+
+        """分割线"""
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(line)
+
+        layout.addWidget(song_list)
+        self.load_songs_from_playlist('精选歌单', song_list)
+    
 if __name__ in "__main__":
     app = QApplication(sys.argv)
     main = iMusic()
