@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QInputDialog
 )
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtSql import QSqlDatabase, QSqlQuery, QSqlError
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QPalette
 
@@ -255,20 +255,29 @@ class iMusic(QMainWindow):
         layout = QVBoxLayout(self.homepage)
 
         """轮播图"""
-        banner = QLabel("热门推荐")
+        banner = QLabel()
         banner.setStyleSheet(
-            """
-            background-color: #f5f5f5;
-            min-height: 200px;
-            border-radius: 10px;
-            font-size: 24px;
-            font-weight: bold;
-            color: #c62f2f;
+        """
+        background-color: #f5f5f5;
+        min-height: 200px;
+        border-radius: 10px;
+        font-size: 24px;
+        font-weight: bold;
+        color: #c62f2f;
         """
         )
         banner.setAlignment(Qt.AlignCenter)
         banner.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
         layout.addWidget(banner)
+
+        self.images = ["icon/1.png", "icon/2.png", "icon/3.png", "icon/4.png", "icon/5.png"]
+        self.current_image_index = 0
+
+        # 设置定时器，用于切换图片
+        self.show_next_image(banner)
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(lambda: self.show_next_image(banner))
+        self.timer.start(3000)
 
         """推荐歌单"""
         recommend_label = QLabel("热门推荐")
@@ -628,6 +637,15 @@ class iMusic(QMainWindow):
             else:
                 print(f"No table found for playlist: {current_playlist_name}")
                 
+    """切换下一张图片"""
+    def show_next_image(self, banner):
+        # 获取当前图片路径
+        image_path = self.images[self.current_image_index]
+        # 加载图片并设置到 QLabel
+        pixmap = QPixmap(image_path)
+        banner.setPixmap(pixmap.scaled(banner.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        # 更新图片索引
+        self.current_image_index = (self.current_image_index + 1) % len(self.images)
 
 if __name__ in "__main__":
     app = QApplication(sys.argv)
