@@ -238,9 +238,9 @@ class iMusic(QMainWindow):
         self.stack.addWidget(self.homepage)
 
         """精选"""
-        self.selected = QWidget()
-        self.selectedUI()
-        self.stack.addWidget(self.selected)
+        # self.selected = QWidget()
+        # self.selectedUI()
+        # self.stack.addWidget(self.selected)
 
         """歌单"""
         # self.playlist = QWidget()
@@ -587,6 +587,20 @@ class iMusic(QMainWindow):
             self.stack.addWidget(new_playlist_page)
             self.add_playlist_button(playlist_name, new_playlist_page)
 
+    def delete_song_in_playlist(self, song_list, current_playlist_name):
+        selected_item = song_list.currentItem()
+        if selected_item:
+            title = selected_item.text()
+
+            """获取当前播放列表的表名"""
+            query = QSqlQuery(self.db)
+            query.prepare("SELECT table_name FROM playlists WHERE name = ?")
+            query.addBindValue(current_playlist_name)
+            query.exec_()
+
+            if query.next():
+                table_name = query.value(0)
+                
 
 if __name__ in "__main__":
     app = QApplication(sys.argv)
