@@ -370,11 +370,27 @@ class iMusic(QMainWindow):
             }
         """)
 
+        delete_button = QPushButton("移除歌曲")
+        delete_button.setStyleSheet("""
+            QPushButton {
+                background-color: #e1e1e1;
+                color: #333;
+                padding: 6px 12px;
+                font-size: 14px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #c6c6c6;
+            }
+        """)
+
         info_layout.addWidget(import_button)
         info_layout.addWidget(play_button)
+        info_layout.addWidget(delete_button)
         
         import_button.clicked.connect(lambda: self.add_song(song_list, playlist_name))
         play_button.clicked.connect(lambda: self.play_selected_song(song_list, playlist_name))
+        delete_button.clicked.connect(lambda: self.delete_song_in_playlist(song_list, playlist_name))
 
         header_layout.addLayout(info_layout)
         layout.addLayout(header_layout)
@@ -587,6 +603,7 @@ class iMusic(QMainWindow):
             self.stack.addWidget(new_playlist_page)
             self.add_playlist_button(playlist_name, new_playlist_page)
 
+    """删除从歌单选中的歌曲并更新到数据库表"""
     def delete_song_in_playlist(self, song_list, current_playlist_name):
         selected_item = song_list.currentItem()
         if selected_item:
@@ -600,6 +617,16 @@ class iMusic(QMainWindow):
 
             if query.next():
                 table_name = query.value(0)
+                query.prepare(f"DELETE FROM {table_name} WHERE title = ?")
+                query.addBindValue(title)
+                if query.exec_():
+                    print(f"Removed: {title} from playlist: {current_playlist_name}")
+                    # 更新列表视图
+                    song_list.takeItem(song_list.currentRow())
+                else:
+                    print(f"Failed to remove: {title} from playlist: {current_playlist_name}")
+            else:
+                print(f"No table found for playlist: {current_playlist_name}")
                 
 
 if __name__ in "__main__":
