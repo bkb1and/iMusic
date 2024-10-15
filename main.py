@@ -27,6 +27,21 @@ from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtSql import QSqlDatabase, QSqlQuery, QSqlError
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QPalette
 
+class CustomProgressBar(QProgressBar):
+    def __init__(self):
+        super().__init__()
+        self.setTextVisible(False)
+        self.setStyleSheet("""
+            QProgressBar {
+                border: none;
+                background-color: #e1e1e1;
+                height: 2px;
+            }
+            QProgressBar::chunk {
+                background-color: #c62f2f;
+            }
+        """)
+
 class iMusic(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -100,7 +115,7 @@ class iMusic(QMainWindow):
         master_layout.setContentsMargins(0, 0, 0, 0)
 
 
-
+        master_master_layout = QVBoxLayout()
 
 
         """左侧边栏"""
@@ -252,6 +267,71 @@ class iMusic(QMainWindow):
         self.stack.setCurrentWidget(self.homepage)
         master_layout.addWidget(content_area, 8)
     
+        # """底部区域"""
+        # player_control = QFrame()
+        # player_control.setStyleSheet("""
+        #     QFrame {
+        #         background-color: #f5f5f5;
+        #         border-top: 1px solid #e1e1e1;
+        #     }
+        # """)
+        # player_layout = QVBoxLayout(player_control)
+        # player_layout.setContentsMargins(10, 5, 10, 5)
+
+        # # 进度条
+        # progress_bar = CustomProgressBar()
+        # progress_bar.setValue(30)
+        # player_layout.addWidget(progress_bar)
+        
+        # # 控制按钮和信息布局
+        # controls_layout = QHBoxLayout()
+        
+        # # 播放控制按钮
+        # control_buttons = ["⏮️", "⏯️", "⏭️"]
+        # for button_text in control_buttons:
+        #     button = QPushButton(button_text)
+        #     button.setFixedSize(32, 32)
+        #     button.setStyleSheet("""
+        #         QPushButton {
+        #             font-size: 16px;
+        #             background-color: transparent;
+        #             border-radius: 16px;
+        #             padding: 0;
+        #             text-align: center;
+        #         }
+        #         QPushButton:hover {
+        #             background-color: #e1e1e1;
+        #         }
+        #     """)
+        #     controls_layout.addWidget(button)
+        
+        # # 当前播放信息
+        # song_info_layout = QVBoxLayout()
+        # song_title = QLabel("当前播放的歌曲")
+        # song_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        # artist_name = QLabel("歌手名称")
+        # artist_name.setStyleSheet("font-size: 12px; color: #666666;")
+        # song_info_layout.addWidget(song_title)
+        # song_info_layout.addWidget(artist_name)
+        # controls_layout.addLayout(song_info_layout)
+        
+        # controls_layout.addStretch()
+        
+        # # 音量控制
+        # volume_slider = QSlider(Qt.Horizontal)
+        # volume_slider.setFixedWidth(100)
+        # volume_slider.setValue(50)
+        # controls_layout.addWidget(QLabel("🔊"))
+        # controls_layout.addWidget(volume_slider)
+        
+        # player_layout.addLayout(controls_layout)
+
+        # master_master_layout.addLayout(master_layout)
+        # master_master_layout.addLayout(player_layout)
+        # self.main_layout.addWidget(player_control)
+        
+        # self.setCentralWidget(self.main_widget)
+
     """主页和推荐页面的布局"""
     def homepageUI(self):
         layout = QVBoxLayout(self.homepage)
@@ -543,8 +623,6 @@ class iMusic(QMainWindow):
 
     """创建新的歌单后在数据库内创建对应的新的歌单的数据表"""
     def create_table_new_playlist(self, playlist_name):
-        if playlist_name == "精选歌单":
-            return
         """创建歌单时动态生成数据表"""
         table_name = f"playlist_{playlist_name.replace(' ', '_')}"
         
@@ -589,6 +667,8 @@ class iMusic(QMainWindow):
 
     """在创建新的歌单之后在左侧边栏添加一个新的按钮"""
     def add_playlist_button(self, playlist_name, new_playlist_page):
+        if playlist_name == "精选歌单":
+            return
         button = QPushButton(f"🎵 {playlist_name}")
         button.setStyleSheet("""
             QPushButton {
@@ -652,7 +732,7 @@ class iMusic(QMainWindow):
         # 更新图片索引
         self.current_image_index = (self.current_image_index + 1) % len(self.images)
 
-    """精选的布局"""
+    """精选页面的布局"""
     def selectedUI(self):
         layout = QVBoxLayout(self.selected)
         header_layout = QHBoxLayout()
@@ -708,6 +788,7 @@ class iMusic(QMainWindow):
         layout.addWidget(song_list)
         self.load_songs_from_playlist('精选歌单', song_list)
     
+
 if __name__ in "__main__":
     app = QApplication(sys.argv)
     main = iMusic()
