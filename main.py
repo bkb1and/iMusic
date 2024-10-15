@@ -218,9 +218,9 @@ class iMusic(QMainWindow):
         create_row.addWidget(play_list_label)
         create_row.addWidget(new_play_list_btn)
 
+        left_layout.addLayout(create_row)
         play_list_layout = QVBoxLayout()
         play_list_layout.setObjectName("play_list_layout")
-        play_list_layout.addLayout(create_row)
         left_layout.addLayout(play_list_layout)
         left_layout.addStretch(1)
         master_layout.addWidget(left_sidebar, 2)
@@ -673,13 +673,20 @@ class iMusic(QMainWindow):
     """再点击'+'后弹出窗口来创建新的歌单"""
     def create_new_play_list(self):
         text, ok = QInputDialog.getText(self, '新歌单', '请输入歌单名称:')
-        if ok and text:
-            self.play_lists.append(text)
-            new_playlist_page = QWidget()
-            new_playlist_page.setObjectName(text)
-            self.playlistUI_template(text, new_playlist_page)
-            self.stack.addWidget(new_playlist_page)
-            self.add_playlist_button(text, new_playlist_page)
+        query = QSqlQuery(self.db)
+        query.prepare("SELECT table_name FROM playlists WHERE name = ?")
+        query.addBindValue(text)
+        query.exec_()
+        if query.next():
+            QMessageBox.warning(self, '歌单已存在', f'歌单 "{text}" 已存在，请使用其他名称。')
+        else:
+            if ok and text:
+                self.play_lists.append(text)
+                new_playlist_page = QWidget()
+                new_playlist_page.setObjectName(text)
+                self.playlistUI_template(text, new_playlist_page)
+                self.stack.addWidget(new_playlist_page)
+                self.add_playlist_button(text, new_playlist_page)
 
     """在创建新的歌单之后在左侧边栏添加一个新的按钮"""
     def add_playlist_button(self, playlist_name, new_playlist_page):
