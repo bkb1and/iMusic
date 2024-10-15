@@ -475,13 +475,29 @@ class iMusic(QMainWindow):
             }
         """)
 
+        delete_playlist_button = QPushButton("移除歌单")
+        delete_playlist_button.setStyleSheet("""
+            QPushButton {
+                background-color: #e1e1e1;
+                color: #333;
+                padding: 6px 12px;
+                font-size: 14px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #c6c6c6;
+            }
+        """)
+
         info_layout.addWidget(import_button)
         info_layout.addWidget(play_button)
         info_layout.addWidget(delete_button)
+        info_layout.addWidget(delete_playlist_button)
         
         import_button.clicked.connect(lambda: self.add_song(song_list, playlist_name))
         play_button.clicked.connect(lambda: self.play_selected_song(song_list, playlist_name))
         delete_button.clicked.connect(lambda: self.delete_song_in_playlist(song_list, playlist_name))
+        delete_playlist_button.clicked.connect(lambda: self.delete_playlist(playlist_name))
 
         header_layout.addLayout(info_layout)
         layout.addLayout(header_layout)
@@ -788,7 +804,77 @@ class iMusic(QMainWindow):
         layout.addWidget(song_list)
         self.load_songs_from_playlist('精选歌单', song_list)
     
+    """删除从歌单选中的歌曲并更新到数据库表"""
+    def delete_song_in_playlist(self, song_list, current_playlist_name):
+        selected_item = song_list.currentItem()
+        if selected_item:
+            title = selected_item.text()
 
+            """获取当前播放列表的表名"""
+            query = QSqlQuery(self.db)
+            query.prepare("SELECT table_name FROM playlists WHERE name = ?")
+            query.addBindValue(current_playlist_name)
+            query.exec_()
+
+            if query.next():
+                table_name = query.value(0)
+                query.prepare(f"DELETE FROM {table_name} WHERE title = ?")
+                query.addBindValue(title)
+                if query.exec_():
+                    print(f"Removed: {title} from playlist: {current_playlist_name}")
+                    # 更新列表视图
+                    song_list.takeItem(song_list.currentRow())
+                else:
+                    print(f"Failed to remove: {title} from playlist: {current_playlist_name}")
+            else:
+                print(f"No table found for playlist: {current_playlist_name}")
+       
+    """删除歌单并更新到数据库表"""
+    def delete_playlist(self, playlist_name):
+        """删除指定名字的歌单，并移除对应的按钮"""
+        if playlist_name == "精选歌单":
+            print("精选歌单无法删除")
+            return
+        
+        # 获取表名
+        table_name = f"playlist_{playlist_name.replace(' ', '_')}"
+        
+        # 检查歌单是否存在于 playlists 主表中
+        query = QSqlQuery(self.db)
+        query.exec_(f"SELECT name FROM playlists WHERE name='{playlist_name}';")
+        
+        if not query.next():
+            print("歌单不存在")
+            return
+
+        # 删除 playlists 主表中的对应记录
+        query.prepare("DELETE FROM playlists WHERE name = ?")
+        query.addBindValue(playlist_name)
+
+        if not query.exec_():
+            print("Failed to delete playlist from playlists:", query.lastError().text())
+            return
+
+        # 删除动态生成的歌单数据表
+        query.exec_(f"DROP TABLE IF EXISTS {table_name}")
+        if query.lastError().isValid():
+            print("Failed to delete playlist table:", query.lastError().text())
+            return
+
+        # 删除对应的按钮
+        play_list_layout = self.findChild(QVBoxLayout, "play_list_layout")
+        for i in range(play_list_layout.count()):
+            widget = play_list_layout.itemAt(i).widget()
+            if isinstance(widget, QPushButton) and widget.text() == f"🎵 {playlist_name}":
+                # 从布局中移除并删除按钮
+                play_list_layout.removeWidget(widget)
+                widget.deleteLater()
+                print(f"按钮 '{playlist_name}' 删除成功")
+                break
+
+        print(f"歌单 '{playlist_name}' 删除成功")
+        self.display(self.stack.indexOf(self.homepage))
+        
 if __name__ in "__main__":
     app = QApplication(sys.argv)
     main = iMusic()
