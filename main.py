@@ -1,6 +1,7 @@
 import sys
 import os
 import pygame
+from pygame import mixer
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -27,21 +28,6 @@ from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtSql import QSqlDatabase, QSqlQuery, QSqlError
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QPalette
 
-class CustomProgressBar(QProgressBar):
-    def __init__(self):
-        super().__init__()
-        self.setTextVisible(False)
-        self.setStyleSheet("""
-            QProgressBar {
-                border: none;
-                background-color: #e1e1e1;
-                height: 2px;
-            }
-            QProgressBar::chunk {
-                background-color: #c62f2f;
-            }
-        """)
-
 class iMusic(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -51,6 +37,15 @@ class iMusic(QMainWindow):
         self.stack = QStackedWidget(self)
         self.init_ui()
         self.load_playlists_from_db()
+
+        pygame.init()
+        mixer.init()
+
+        self.current_table_name = None
+        self.current_filepath = None
+        self.previous_filepath = None
+        self.next_filepath = None
+        self.is_playing = False
     
     """初始化ui"""
     def init_ui(self):
@@ -266,6 +261,10 @@ class iMusic(QMainWindow):
 
         self.stack.setCurrentWidget(self.homepage)
         master_layout.addWidget(content_area, 8)
+
+
+
+
     
         """底部区域"""
         player_control = QFrame()
@@ -279,7 +278,17 @@ class iMusic(QMainWindow):
         player_layout.setContentsMargins(10, 5, 10, 5)
 
         # 进度条
-        progress_bar = CustomProgressBar()
+        progress_bar = QSlider(Qt.Horizontal)
+        progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: none;
+                background-color: #e1e1e1;
+                height: 2px;
+            }
+            QProgressBar::chunk {
+                background-color: #c62f2f;
+            }
+        """)
         progress_bar.setValue(30)
         player_layout.addWidget(progress_bar)
         
@@ -304,6 +313,12 @@ class iMusic(QMainWindow):
                 }
             """)
             controls_layout.addWidget(button)
+            if(button_text == "⏮️"):
+                button.clicked.connect(lambda: self.play_prev_song())
+            elif(button_text == "⏯️"):
+                button.clicked.connect(lambda: self.play_pause_song())
+            else:
+                button.clicked.connect(lambda: self.play_next_song())
         
         # 当前播放信息
         song_info_layout = QVBoxLayout()
@@ -314,7 +329,6 @@ class iMusic(QMainWindow):
         song_info_layout.addWidget(song_title)
         song_info_layout.addWidget(artist_name)
         controls_layout.addLayout(song_info_layout)
-        
         controls_layout.addStretch()
         
         # 音量控制
@@ -326,13 +340,8 @@ class iMusic(QMainWindow):
         
         player_layout.addLayout(controls_layout)
 
-
-
         master_master_layout.addLayout(master_layout)
-
-        master_master_layout.addWidget(player_control)
-        
-        # self.setCentralWidget(self.centralWidget())
+        master_master_layout.addWidget(player_control)     
 
     """主页和推荐页面的布局"""
     def homepageUI(self):
@@ -616,25 +625,51 @@ class iMusic(QMainWindow):
             
             if query.next():
                 table_name = query.value(0)
+                self.current_table_name = table_name
                 # 根据当前歌单表名查询歌曲的文件路径
-                query.prepare(f"SELECT filepath FROM {table_name} WHERE title = ?")
+                query.prepare(f"SELECT id, filepath FROM {table_name} WHERE title = ?")
                 query.addBindValue(title)
                 query.exec_()
                 if query.next():
-                    filepath = query.value(0)
-                    print("Playing:", filepath)  # 添加调试输出
-                    self.play_song(filepath)
+                    current_id = query.value(0)
+                    # 获取前一首歌曲的路径 (id - 1)
+                    query.prepare(f"SELECT filepath FROM {table_name} WHERE id = ?")
+                    query.addBindValue(current_id - 1)
+                    query.exec_()
+                    self.previous_filepath = query.value(0) if query.next() else None
+
+                    # 获取后一首歌曲的路径 (id + 1)
+                    query.prepare(f"SELECT filepath FROM {table_name} WHERE id = ?")
+                    query.addBindValue(current_id + 1)
+                    query.exec_()
+                    self.next_filepath = query.value(0) if query.next() else None
+
+                    # 打印调试输出
+                    print("Playing:", title)
+                    print("Previous file path:", self.previous_filepath)
+                    print("Next file path:", self.next_filepath)
+
+                    # 播放当前选中歌曲
+                    query.prepare(f"SELECT filepath FROM {table_name} WHERE title = ?")
+                    query.addBindValue(title)
+                    query.exec_()
+                    if query.next():
+                        self.filepath = query.value(0)
+                        self.play_song(self.filepath)
+                    else:
+                        print("No file path found for:", title)
                 else:
-                    print("No file path found for:", title)  # 添加调试输出
+                    print(f"No ID found for title: {title}")
             else:
                 print(f"No table found for playlist: {current_playlist_name}")
 
     """利用pygame模块中的方法播放音频媒体文件"""
     def play_song(self, filepath):
         try:
-            pygame.mixer.init()
+            # pygame.mixer.init()
             pygame.mixer.music.load(filepath)
             pygame.mixer.music.play()
+            self.is_playing = True
             print("Music is playing...")  # 添加调试输出
         except Exception as e:
             print("Error playing song:", e)  # 捕捉播放错误
@@ -883,7 +918,84 @@ class iMusic(QMainWindow):
 
         print(f"歌单 '{playlist_name}' 删除成功")
         self.display(self.stack.indexOf(self.homepage))
-        
+    
+    """进度条控制"""
+    def progress_bar_control(self):
+        pass
+
+    """上一首/下一首/播放暂停 控制"""
+    def play_prev_song(self):
+        if(self.previous_filepath == None):
+            print(f"没有上一首歌")
+        else:
+            self.play_song(self.previous_filepath)
+            query = QSqlQuery(self.db)
+            query.prepare(f"SELECT id FROM {self.current_table_name} WHERE filepath = ?")
+            query.addBindValue(self.previous_filepath)
+            query.exec_()
+            if query.next():
+                current_id = query.value(0)
+
+                # 获取前一首歌曲的路径 (id - 1)
+                query.prepare(f"SELECT filepath FROM {self.current_table_name} WHERE id = ?")
+                query.addBindValue(current_id - 1)
+                query.exec_()
+                self.previous_filepath = query.value(0) if query.next() else None
+
+                # 获取后一首歌曲的路径 (id + 1)
+                query.prepare(f"SELECT filepath FROM {self.current_table_name} WHERE id = ?")
+                query.addBindValue(current_id + 1)
+                query.exec_()
+                self.next_filepath = query.value(0) if query.next() else None
+
+                print("Previous file path:", self.previous_filepath)
+                print("Next file path:", self.next_filepath)
+
+    def play_next_song(self):
+        if(self.next_filepath == None):
+            print(f"没有下一首歌")
+        else:
+            self.play_song(self.next_filepath)
+            query = QSqlQuery(self.db)
+            query.prepare(f"SELECT id FROM {self.current_table_name} WHERE filepath = ?")
+            query.addBindValue(self.next_filepath)
+            query.exec_()
+            if query.next():
+                current_id = query.value(0)
+                
+                # 获取前一首歌曲的路径 (id - 1)
+                query.prepare(f"SELECT filepath FROM {self.current_table_name} WHERE id = ?")
+                query.addBindValue(current_id - 1)
+                query.exec_()
+                self.previous_filepath = query.value(0) if query.next() else None
+
+                # 获取后一首歌曲的路径 (id + 1)
+                query.prepare(f"SELECT filepath FROM {self.current_table_name} WHERE id = ?")
+                query.addBindValue(current_id + 1)
+                query.exec_()
+                self.next_filepath = query.value(0) if query.next() else None
+
+                print("Previous file path:", self.previous_filepath)
+                print("Next file path:", self.next_filepath)
+
+    def play_pause_song(self):
+        if(self.is_playing):
+            pygame.mixer.music.pause()
+            self.is_playing = False
+            print(f"播放暂停")
+        else:
+            pygame.mixer.music.unpause()
+            self.is_playing = True
+            print(f"播放继续")
+
+    """歌曲信息控制"""
+    def playing_song_info(self):
+        pass
+
+    """音量控制"""
+    def volumn_control(self):
+        pass
+
 if __name__ in "__main__":
     app = QApplication(sys.argv)
     main = iMusic()
