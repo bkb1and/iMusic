@@ -110,12 +110,18 @@ class iMusic(QMainWindow):
         """中心控件"""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
-        master_layout = QHBoxLayout(central_widget)
+
+        master_master_layout = QVBoxLayout(central_widget)
+        master_master_layout.setSpacing(0)
+        master_master_layout.setContentsMargins(0, 0, 0, 0)
+
+
+        master_layout = QHBoxLayout()
         master_layout.setSpacing(0)
         master_layout.setContentsMargins(0, 0, 0, 0)
 
 
-        master_master_layout = QVBoxLayout()
+        # master_master_layout = QVBoxLayout()
 
 
         """左侧边栏"""
@@ -246,7 +252,6 @@ class iMusic(QMainWindow):
         content_layout.addLayout((top_bar_layout))
 
         """页面管理"""
-
         content_layout.addWidget(self.stack)
 
         """推荐/主页"""
@@ -259,78 +264,75 @@ class iMusic(QMainWindow):
         self.selectedUI()
         self.stack.addWidget(self.selected)
 
-        """歌单"""
-        # self.playlist = QWidget()
-        # self.playlistUI_template("list 1")
-        # self.stack.addWidget(self.playlist)
-
         self.stack.setCurrentWidget(self.homepage)
         master_layout.addWidget(content_area, 8)
     
-        # """底部区域"""
-        # player_control = QFrame()
-        # player_control.setStyleSheet("""
-        #     QFrame {
-        #         background-color: #f5f5f5;
-        #         border-top: 1px solid #e1e1e1;
-        #     }
-        # """)
-        # player_layout = QVBoxLayout(player_control)
-        # player_layout.setContentsMargins(10, 5, 10, 5)
+        """底部区域"""
+        player_control = QFrame()
+        player_control.setStyleSheet("""
+            QFrame {
+                background-color: #f5f5f5;
+                border-top: 1px solid #e1e1e1;
+            }
+        """)
+        player_layout = QVBoxLayout(player_control)
+        player_layout.setContentsMargins(10, 5, 10, 5)
 
-        # # 进度条
-        # progress_bar = CustomProgressBar()
-        # progress_bar.setValue(30)
-        # player_layout.addWidget(progress_bar)
+        # 进度条
+        progress_bar = CustomProgressBar()
+        progress_bar.setValue(30)
+        player_layout.addWidget(progress_bar)
         
-        # # 控制按钮和信息布局
-        # controls_layout = QHBoxLayout()
+        # 控制按钮和信息布局
+        controls_layout = QHBoxLayout()
         
-        # # 播放控制按钮
-        # control_buttons = ["⏮️", "⏯️", "⏭️"]
-        # for button_text in control_buttons:
-        #     button = QPushButton(button_text)
-        #     button.setFixedSize(32, 32)
-        #     button.setStyleSheet("""
-        #         QPushButton {
-        #             font-size: 16px;
-        #             background-color: transparent;
-        #             border-radius: 16px;
-        #             padding: 0;
-        #             text-align: center;
-        #         }
-        #         QPushButton:hover {
-        #             background-color: #e1e1e1;
-        #         }
-        #     """)
-        #     controls_layout.addWidget(button)
+        # 播放控制按钮
+        control_buttons = ["⏮️", "⏯️", "⏭️"]
+        for button_text in control_buttons:
+            button = QPushButton(button_text)
+            button.setFixedSize(32, 32)
+            button.setStyleSheet("""
+                QPushButton {
+                    font-size: 16px;
+                    background-color: transparent;
+                    border-radius: 16px;
+                    padding: 0;
+                    text-align: center;
+                }
+                QPushButton:hover {
+                    background-color: #e1e1e1;
+                }
+            """)
+            controls_layout.addWidget(button)
         
-        # # 当前播放信息
-        # song_info_layout = QVBoxLayout()
-        # song_title = QLabel("当前播放的歌曲")
-        # song_title.setStyleSheet("font-size: 14px; font-weight: bold;")
-        # artist_name = QLabel("歌手名称")
-        # artist_name.setStyleSheet("font-size: 12px; color: #666666;")
-        # song_info_layout.addWidget(song_title)
-        # song_info_layout.addWidget(artist_name)
-        # controls_layout.addLayout(song_info_layout)
+        # 当前播放信息
+        song_info_layout = QVBoxLayout()
+        song_title = QLabel("当前播放的歌曲")
+        song_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        artist_name = QLabel("歌手名称")
+        artist_name.setStyleSheet("font-size: 12px; color: #666666;")
+        song_info_layout.addWidget(song_title)
+        song_info_layout.addWidget(artist_name)
+        controls_layout.addLayout(song_info_layout)
         
-        # controls_layout.addStretch()
+        controls_layout.addStretch()
         
-        # # 音量控制
-        # volume_slider = QSlider(Qt.Horizontal)
-        # volume_slider.setFixedWidth(100)
-        # volume_slider.setValue(50)
-        # controls_layout.addWidget(QLabel("🔊"))
-        # controls_layout.addWidget(volume_slider)
+        # 音量控制
+        volume_slider = QSlider(Qt.Horizontal)
+        volume_slider.setFixedWidth(100)
+        volume_slider.setValue(50)
+        controls_layout.addWidget(QLabel("🔊"))
+        controls_layout.addWidget(volume_slider)
         
-        # player_layout.addLayout(controls_layout)
+        player_layout.addLayout(controls_layout)
 
-        # master_master_layout.addLayout(master_layout)
-        # master_master_layout.addLayout(player_layout)
-        # self.main_layout.addWidget(player_control)
+
+
+        master_master_layout.addLayout(master_layout)
+
+        master_master_layout.addWidget(player_control)
         
-        # self.setCentralWidget(self.main_widget)
+        # self.setCentralWidget(self.centralWidget())
 
     """主页和推荐页面的布局"""
     def homepageUI(self):
