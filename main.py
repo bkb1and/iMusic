@@ -34,27 +34,19 @@ class iMusic(QMainWindow):
         self.db = None
         self.current_table_name = None
         self.current_filepath = None
+        self.current_song_title = None
+        self.current_song_artist = None
+        self.current_song_album = None
         self.song_duration = 0
         self.previous_filepath = None
         self.next_filepath = None
         self.is_playing = False
         self.play_lists = []
+
         self.stack = QStackedWidget(self)
         self.banner_timer = QTimer(self)
         self.progress_timer = QTimer(self)
         self.progress_bar = QSlider(Qt.Horizontal)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: none;
-                background-color: #e1e1e1;
-                height: 2px;
-            }
-            QProgressBar::chunk {
-                background-color: #c62f2f;
-            }
-        """)
-        self.progress_bar.setValue(0)
-        self.progress_timer.timeout.connect(self.update_progress)
 
 
         pygame.init()
@@ -295,19 +287,19 @@ class iMusic(QMainWindow):
         player_layout = QVBoxLayout(player_control)
         player_layout.setContentsMargins(10, 5, 10, 5)
 
-        # # 进度条
-        # progress_bar = QSlider(Qt.Horizontal)
-        # progress_bar.setStyleSheet("""
-        #     QProgressBar {
-        #         border: none;
-        #         background-color: #e1e1e1;
-        #         height: 2px;
-        #     }
-        #     QProgressBar::chunk {
-        #         background-color: #c62f2f;
-        #     }
-        # """)
-        # progress_bar.setValue(30)
+        # 进度条
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: none;
+                background-color: #e1e1e1;
+                height: 2px;
+            }
+            QProgressBar::chunk {
+                background-color: #c62f2f;
+            }
+        """)
+        self.progress_bar.setValue(0)
+        self.progress_timer.timeout.connect(self.update_progress)
         player_layout.addWidget(self.progress_bar)
         
         # 控制按钮和信息布局
@@ -340,12 +332,21 @@ class iMusic(QMainWindow):
         
         # 当前播放信息
         song_info_layout = QVBoxLayout()
-        song_title = QLabel("当前播放的歌曲")
-        song_title.setStyleSheet("font-size: 14px; font-weight: bold;")
-        artist_name = QLabel("歌手名称")
-        artist_name.setStyleSheet("font-size: 12px; color: #666666;")
-        song_info_layout.addWidget(song_title)
-        song_info_layout.addWidget(artist_name)
+        # song_title = QLabel("当前播放的歌曲")
+        # song_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        # artist_name = QLabel("歌手名称")
+        # artist_name.setStyleSheet("font-size: 12px; color: #666666;")
+
+        self.song_title = QLabel()
+        self.song_title.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self.artist_name = QLabel()
+        self.artist_name.setStyleSheet("font-size: 12px; color: #666666;")
+        if self.is_playing == False:
+            self.song_title.setText("当前无播放单曲")
+            self.artist_name.setText("")
+
+        song_info_layout.addWidget(self.song_title)
+        song_info_layout.addWidget(self.artist_name)
         controls_layout.addLayout(song_info_layout)
         controls_layout.addStretch()
         
@@ -666,11 +667,14 @@ class iMusic(QMainWindow):
                     print("Next file path:", self.next_filepath)
 
                     # 播放当前选中歌曲
-                    query.prepare(f"SELECT filepath FROM {table_name} WHERE title = ?")
+                    query.prepare(f"SELECT filepath, title, artist, album FROM {table_name} WHERE title = ?")
                     query.addBindValue(title)
                     query.exec_()
                     if query.next():
                         self.current_filepath = query.value(0)
+                        self.current_song_title = query.value(1)
+                        self.current_song_artist = query.value(2)
+                        self.current_song_album = query.value(3)
                         self.song_duration = self.get_song_duration()
                         self.play_song(self.current_filepath)
                     else:
@@ -683,11 +687,12 @@ class iMusic(QMainWindow):
     """利用pygame模块中的方法播放音频媒体文件"""
     def play_song(self, filepath):
         try:
-            # pygame.mixer.init()
             pygame.mixer.music.load(filepath)
             pygame.mixer.music.play()
             self.progress_timer.start(100)
             self.is_playing = True
+            self.song_title.setText(self.current_song_title)
+            self.artist_name.setText(self.current_song_artist)
             print("Music is playing...")  # 添加调试输出
         except Exception as e:
             print("Error playing song:", e)  # 捕捉播放错误
@@ -955,8 +960,18 @@ class iMusic(QMainWindow):
         if(self.previous_filepath == None):
             print(f"没有上一首歌")
         else:
-            self.play_song(self.previous_filepath)
             query = QSqlQuery(self.db)
+            query.prepare(f"SELECT id, title, artist, album FROM {self.current_table_name} WHERE filepath = ?")
+            query.addBindValue(self.previous_filepath)
+            query.exec_()
+            if query.next():
+                self.current_song_title = query.value(1)
+                self.current_song_artist = query.value(2)
+                self.current_song_album = query.value(3)
+                self.current_filepath = self.previous_filepath
+                self.song_duration = self.get_song_duration()
+                self.play_song(self.previous_filepath)
+
             query.prepare(f"SELECT id FROM {self.current_table_name} WHERE filepath = ?")
             query.addBindValue(self.previous_filepath)
             query.exec_()
@@ -981,7 +996,17 @@ class iMusic(QMainWindow):
         if(self.next_filepath == None):
             print(f"没有下一首歌")
         else:
-            self.play_song(self.next_filepath)
+            query = QSqlQuery(self.db)
+            query.prepare(f"SELECT id, title, artist, album FROM {self.current_table_name} WHERE filepath = ?")
+            query.addBindValue(self.next_filepath)
+            query.exec_()
+            if query.next():
+                self.current_song_title = query.value(1)
+                self.current_song_artist = query.value(2)
+                self.current_song_album = query.value(3)
+                self.current_filepath = self.next_filepath
+                self.song_duration = self.get_song_duration()
+                self.play_song(self.next_filepath)
             query = QSqlQuery(self.db)
             query.prepare(f"SELECT id FROM {self.current_table_name} WHERE filepath = ?")
             query.addBindValue(self.next_filepath)
