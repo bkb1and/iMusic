@@ -32,20 +32,38 @@ class iMusic(QMainWindow):
     def __init__(self):
         super().__init__()
         self.db = None
-        self.create_db()
+        self.current_table_name = None
+        self.current_filepath = None
+        self.song_duration = 0
+        self.previous_filepath = None
+        self.next_filepath = None
+        self.is_playing = False
         self.play_lists = []
         self.stack = QStackedWidget(self)
-        self.init_ui()
-        self.load_playlists_from_db()
+        self.banner_timer = QTimer(self)
+        self.progress_timer = QTimer(self)
+        self.progress_bar = QSlider(Qt.Horizontal)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: none;
+                background-color: #e1e1e1;
+                height: 2px;
+            }
+            QProgressBar::chunk {
+                background-color: #c62f2f;
+            }
+        """)
+        self.progress_bar.setValue(0)
+        self.progress_timer.timeout.connect(self.update_progress)
+
 
         pygame.init()
         mixer.init()
 
-        self.current_table_name = None
-        self.current_filepath = None
-        self.previous_filepath = None
-        self.next_filepath = None
-        self.is_playing = False
+
+        self.create_db()
+        self.init_ui()
+        self.load_playlists_from_db()
     
     """初始化ui"""
     def init_ui(self):
@@ -277,20 +295,20 @@ class iMusic(QMainWindow):
         player_layout = QVBoxLayout(player_control)
         player_layout.setContentsMargins(10, 5, 10, 5)
 
-        # 进度条
-        progress_bar = QSlider(Qt.Horizontal)
-        progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: none;
-                background-color: #e1e1e1;
-                height: 2px;
-            }
-            QProgressBar::chunk {
-                background-color: #c62f2f;
-            }
-        """)
-        progress_bar.setValue(30)
-        player_layout.addWidget(progress_bar)
+        # # 进度条
+        # progress_bar = QSlider(Qt.Horizontal)
+        # progress_bar.setStyleSheet("""
+        #     QProgressBar {
+        #         border: none;
+        #         background-color: #e1e1e1;
+        #         height: 2px;
+        #     }
+        #     QProgressBar::chunk {
+        #         background-color: #c62f2f;
+        #     }
+        # """)
+        # progress_bar.setValue(30)
+        player_layout.addWidget(self.progress_bar)
         
         # 控制按钮和信息布局
         controls_layout = QHBoxLayout()
@@ -366,11 +384,9 @@ class iMusic(QMainWindow):
         self.images = ["icon/1.png", "icon/2.png", "icon/3.png", "icon/4.png", "icon/5.png"]
         self.current_image_index = 0
 
-        # 设置定时器，用于切换图片
         self.show_next_image(banner)
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(lambda: self.show_next_image(banner))
-        self.timer.start(3000)
+        self.banner_timer.timeout.connect(lambda: self.show_next_image(banner))
+        self.banner_timer.start(3000)
 
         """推荐歌单"""
         recommend_label = QLabel("热门推荐")
@@ -522,7 +538,7 @@ class iMusic(QMainWindow):
         layout.addWidget(song_list)
         self.load_songs_from_playlist(playlist_name, song_list)
         
-    """再点击按钮后将内容区域的页面切换到对应的部件"""
+    """在点击按钮后将内容区域的页面切换到对应的部件"""
     def display(self, i):
         self.stack.setCurrentIndex(i)
 
@@ -654,8 +670,9 @@ class iMusic(QMainWindow):
                     query.addBindValue(title)
                     query.exec_()
                     if query.next():
-                        self.filepath = query.value(0)
-                        self.play_song(self.filepath)
+                        self.current_filepath = query.value(0)
+                        self.song_duration = self.get_song_duration()
+                        self.play_song(self.current_filepath)
                     else:
                         print("No file path found for:", title)
                 else:
@@ -669,6 +686,7 @@ class iMusic(QMainWindow):
             # pygame.mixer.init()
             pygame.mixer.music.load(filepath)
             pygame.mixer.music.play()
+            self.progress_timer.start(100)
             self.is_playing = True
             print("Music is playing...")  # 添加调试输出
         except Exception as e:
@@ -919,9 +937,18 @@ class iMusic(QMainWindow):
         print(f"歌单 '{playlist_name}' 删除成功")
         self.display(self.stack.indexOf(self.homepage))
     
+    """获取当前播放歌曲总时长"""
+    def get_song_duration(self):
+        sound = pygame.mixer.Sound(self.current_filepath)
+        return sound.get_length()  # 返回音频的总时长（秒）
+
     """进度条控制"""
-    def progress_bar_control(self):
-        pass
+    def update_progress(self):
+        if self.is_playing:
+            current_time = mixer.music.get_pos() / 1000  # 当前播放时间（秒）
+            if self.song_duration > 0:
+                progress_percentage = (current_time / self.song_duration) * 100
+                self.progress_bar.setValue(int(progress_percentage))
 
     """上一首/下一首/播放暂停 控制"""
     def play_prev_song(self):
@@ -950,7 +977,6 @@ class iMusic(QMainWindow):
 
                 print("Previous file path:", self.previous_filepath)
                 print("Next file path:", self.next_filepath)
-
     def play_next_song(self):
         if(self.next_filepath == None):
             print(f"没有下一首歌")
@@ -977,20 +1003,22 @@ class iMusic(QMainWindow):
 
                 print("Previous file path:", self.previous_filepath)
                 print("Next file path:", self.next_filepath)
-
     def play_pause_song(self):
         if(self.is_playing):
             pygame.mixer.music.pause()
             self.is_playing = False
+            self.progress_timer.stop()
             print(f"播放暂停")
         else:
             pygame.mixer.music.unpause()
             self.is_playing = True
+            self.progress_timer.start(100)
             print(f"播放继续")
 
     """歌曲信息控制"""
     def playing_song_info(self):
-        pass
+        query = QSqlQuery(self.db)
+        query.prepare()
 
     """音量控制"""
     def volumn_control(self):
