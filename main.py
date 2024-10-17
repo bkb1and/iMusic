@@ -1,7 +1,7 @@
 import sys
 import os
 import pygame
-from pygame import mixer
+import time
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -38,9 +38,12 @@ class iMusic(QMainWindow):
         self.current_song_artist = None
         self.current_song_album = None
         self.song_duration = 0
+        self.current_time = 0
+        self.current_pos = 0
         self.previous_filepath = None
         self.next_filepath = None
         self.is_playing = False
+        self.is_dragging = False
         self.play_lists = []
 
         self.stack = QStackedWidget(self)
@@ -48,10 +51,7 @@ class iMusic(QMainWindow):
         self.progress_timer = QTimer(self)
         self.progress_bar = QSlider(Qt.Horizontal)
 
-
-        pygame.init()
-        mixer.init()
-
+        pygame.mixer.init()
 
         self.create_db()
         self.init_ui()
@@ -126,7 +126,7 @@ class iMusic(QMainWindow):
         master_layout.setContentsMargins(0, 0, 0, 0)
 
 
-        # master_master_layout = QVBoxLayout()
+
 
 
         """左侧边栏"""
@@ -298,7 +298,10 @@ class iMusic(QMainWindow):
                 background-color: #c62f2f;
             }
         """)
+        self.progress_bar.setRange(0, 1000)
         self.progress_bar.setValue(0)
+        self.progress_bar.sliderPressed.connect(self.on_progress_bar_drag_start)
+        self.progress_bar.sliderReleased.connect(self.on_progress_bar_drag_end)
         self.progress_timer.timeout.connect(self.update_progress)
         player_layout.addWidget(self.progress_bar)
         
@@ -332,11 +335,6 @@ class iMusic(QMainWindow):
         
         # 当前播放信息
         song_info_layout = QVBoxLayout()
-        # song_title = QLabel("当前播放的歌曲")
-        # song_title.setStyleSheet("font-size: 14px; font-weight: bold;")
-        # artist_name = QLabel("歌手名称")
-        # artist_name.setStyleSheet("font-size: 12px; color: #666666;")
-
         self.song_title = QLabel()
         self.song_title.setStyleSheet("font-size: 14px; font-weight: bold;")
         self.artist_name = QLabel()
@@ -675,7 +673,6 @@ class iMusic(QMainWindow):
                         self.current_song_title = query.value(1)
                         self.current_song_artist = query.value(2)
                         self.current_song_album = query.value(3)
-                        self.song_duration = self.get_song_duration()
                         self.play_song(self.current_filepath)
                     else:
                         print("No file path found for:", title)
@@ -686,16 +683,14 @@ class iMusic(QMainWindow):
 
     """利用pygame模块中的方法播放音频媒体文件"""
     def play_song(self, filepath):
-        try:
-            pygame.mixer.music.load(filepath)
-            pygame.mixer.music.play()
-            self.progress_timer.start(100)
-            self.is_playing = True
-            self.song_title.setText(self.current_song_title)
-            self.artist_name.setText(self.current_song_artist)
-            print("Music is playing...")  # 添加调试输出
-        except Exception as e:
-            print("Error playing song:", e)  # 捕捉播放错误
+        pygame.mixer.music.load(filepath)
+        pygame.mixer.music.play()
+        self.progress_timer.start(1000)
+        self.is_playing = True
+        self.song_duration = pygame.mixer.Sound(filepath).get_length()
+        self.song_title.setText(self.current_song_title)
+        self.artist_name.setText(self.current_song_artist)
+        print("Music is playing...")
 
     """创建新的歌单后在数据库内创建对应的新的歌单的数据表"""
     def create_table_new_playlist(self, playlist_name):
@@ -942,18 +937,24 @@ class iMusic(QMainWindow):
         print(f"歌单 '{playlist_name}' 删除成功")
         self.display(self.stack.indexOf(self.homepage))
     
-    """获取当前播放歌曲总时长"""
-    def get_song_duration(self):
-        sound = pygame.mixer.Sound(self.current_filepath)
-        return sound.get_length()  # 返回音频的总时长（秒）
-
     """进度条控制"""
     def update_progress(self):
-        if self.is_playing:
-            current_time = mixer.music.get_pos() / 1000  # 当前播放时间（秒）
-            if self.song_duration > 0:
-                progress_percentage = (current_time / self.song_duration) * 100
-                self.progress_bar.setValue(int(progress_percentage))
+        if self.is_playing and self.is_dragging == False:
+            self.current_time = self.current_pos / 1000
+            progress_percentage = (self.current_time / self.song_duration) * 1000
+            self.progress_bar.setValue(int(progress_percentage))
+    def change_song_progress(self):
+        new_value = self.progress_bar.value()
+        self.current_time = (new_value / 1000) * self.song_duration
+        self.current_pos = self.current_time * 1000
+        pygame.mixer.music.set_pos(self.current_time)
+    def on_progress_bar_drag_start(self):
+        self.is_dragging = True
+        self.progress_timer.stop()
+    def on_progress_bar_drag_end(self):
+        self.is_dragging = False
+        self.change_song_progress()
+        self.progress_timer.start(1000)
 
     """上一首/下一首/播放暂停 控制"""
     def play_prev_song(self):
@@ -969,7 +970,6 @@ class iMusic(QMainWindow):
                 self.current_song_artist = query.value(2)
                 self.current_song_album = query.value(3)
                 self.current_filepath = self.previous_filepath
-                self.song_duration = self.get_song_duration()
                 self.play_song(self.previous_filepath)
 
             query.prepare(f"SELECT id FROM {self.current_table_name} WHERE filepath = ?")
@@ -1005,7 +1005,6 @@ class iMusic(QMainWindow):
                 self.current_song_artist = query.value(2)
                 self.current_song_album = query.value(3)
                 self.current_filepath = self.next_filepath
-                self.song_duration = self.get_song_duration()
                 self.play_song(self.next_filepath)
             query = QSqlQuery(self.db)
             query.prepare(f"SELECT id FROM {self.current_table_name} WHERE filepath = ?")
@@ -1039,11 +1038,6 @@ class iMusic(QMainWindow):
             self.is_playing = True
             self.progress_timer.start(100)
             print(f"播放继续")
-
-    """歌曲信息控制"""
-    def playing_song_info(self):
-        query = QSqlQuery(self.db)
-        query.prepare()
 
     """音量控制"""
     def volumn_control(self):
