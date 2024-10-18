@@ -1,7 +1,7 @@
 import sys
 import os
 import pygame
-import time
+import re
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -15,11 +15,9 @@ from PyQt5.QtWidgets import (
     QScrollArea,
     QFrame,
     QGridLayout,
-    QProgressBar,
     QSlider,
     QSizePolicy,
     QStackedWidget,
-    QListWidgetItem,
     QFileDialog,
     QMessageBox,
     QInputDialog
@@ -40,22 +38,29 @@ class iMusic(QMainWindow):
         self.song_duration = 0
         self.current_time = 0
         self.current_pos = 0
+        self.current_page = None
         self.previous_filepath = None
         self.next_filepath = None
         self.is_playing = False
         self.is_dragging = False
         self.play_lists = []
 
+        self.lyrics_dict = {}
+        self.labels = []
+
+
         self.stack = QStackedWidget(self)
         self.banner_timer = QTimer(self)
         self.progress_timer = QTimer(self)
         self.progress_bar = QSlider(Qt.Horizontal)
+        self.lyric_timer = QTimer(self)
 
         pygame.mixer.init()
 
         self.create_db()
         self.init_ui()
         self.load_playlists_from_db()
+        self.load_lyrics_pages_from_db()
     
     """初始化ui"""
     def init_ui(self):
@@ -334,6 +339,10 @@ class iMusic(QMainWindow):
                 button.clicked.connect(lambda: self.play_next_song())
         
         # 当前播放信息
+        info_layout = QHBoxLayout()
+        self.lyric_btn = QPushButton("-")
+        self.lyric_btn.clicked.connect(self.display_lyric_page)
+
         song_info_layout = QVBoxLayout()
         self.song_title = QLabel()
         self.song_title.setStyleSheet("font-size: 14px; font-weight: bold;")
@@ -345,7 +354,11 @@ class iMusic(QMainWindow):
 
         song_info_layout.addWidget(self.song_title)
         song_info_layout.addWidget(self.artist_name)
-        controls_layout.addLayout(song_info_layout)
+
+        info_layout.addWidget(self.lyric_btn)
+        info_layout.addLayout(song_info_layout)
+
+        controls_layout.addLayout(info_layout)
         controls_layout.addStretch()
         
         # 音量控制
@@ -553,12 +566,18 @@ class iMusic(QMainWindow):
 
         query = QSqlQuery(self.db)
         query.exec_("""
-        CREATE TABLE IF NOT EXISTS playlists (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            table_name TEXT
-        )
-    """)
+            CREATE TABLE IF NOT EXISTS playlists (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                table_name TEXT
+            )
+        """)
+        query.exec_("""
+            CREATE TABLE IF NOT EXISTS lyrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                song_name TEXT
+            )
+        """)
 
     """弹出QFileDialog来选中并导入本地存在的音频媒体文件"""
     def add_song(self, song_list, playlist_name):
@@ -683,6 +702,7 @@ class iMusic(QMainWindow):
 
     """利用pygame模块中的方法播放音频媒体文件"""
     def play_song(self, filepath):
+        print(filepath)
         pygame.mixer.music.load(filepath)
         pygame.mixer.music.play()
         self.progress_timer.start(1000)
@@ -691,6 +711,28 @@ class iMusic(QMainWindow):
         self.song_title.setText(self.current_song_title)
         self.artist_name.setText(self.current_song_artist)
         print("Music is playing...")
+
+        current_lyric_path = self.current_filepath.rsplit('.', 1)[0] + '.lrc'
+        self.parse_lrc(current_lyric_path)
+
+
+        """先查找在lyrics数据表中是否已经存在创建过歌词界面的歌"""
+        query = QSqlQuery(self.db)
+        query.prepare("SELECT song_name FROM lyrics WHERE song_name = ?")
+        query.addBindValue(self.current_song_title)
+        query.exec_()
+        if query.next():
+            return
+        
+        query.prepare("INSERT INTO lyrics (song_name) VALUES (?)")
+        query.addBindValue(self.current_song_title)
+        query.exec_()
+
+
+        new_lyric_page = QWidget()
+        new_lyric_page.setObjectName(self.current_song_title)
+        self.lyricUI(new_lyric_page)
+        self.stack.addWidget(new_lyric_page)
 
     """创建新的歌单后在数据库内创建对应的新的歌单的数据表"""
     def create_table_new_playlist(self, playlist_name):
@@ -743,6 +785,15 @@ class iMusic(QMainWindow):
                 self.stack.addWidget(new_playlist_page)
                 self.add_playlist_button(text, new_playlist_page)
 
+    """创建新的歌词页面"""
+    def display_lyric_page(self):
+        self.lyric_timer.start(10)
+        self.lyric_timer.timeout.connect(self.update_lyrics)
+        self.update_lyrics()
+        self.display(self.stack.indexOf(self.findChild(QWidget, self.current_song_title)))
+
+
+
     """在创建新的歌单之后在左侧边栏添加一个新的按钮"""
     def add_playlist_button(self, playlist_name, new_playlist_page):
         if playlist_name == "精选歌单":
@@ -774,6 +825,18 @@ class iMusic(QMainWindow):
             self.playlistUI_template(playlist_name, new_playlist_page)
             self.stack.addWidget(new_playlist_page)
             self.add_playlist_button(playlist_name, new_playlist_page)
+
+    """在客户端启动时自动创建数据表中记录的本应有的歌词界面控件"""
+    def load_lyrics_pages_from_db(self):
+        query = QSqlQuery(self.db)
+        query.exec_("SELECT song_name FROM lyrics")
+        
+        while query.next():
+            song_name = query.value(0)
+            new_lyric_page = QWidget()
+            new_lyric_page.setObjectName(song_name)
+            self.lyricUI(new_lyric_page)
+            self.stack.addWidget(new_lyric_page)
 
     """删除从歌单选中的歌曲并更新到数据库表"""
     def delete_song_in_playlist(self, song_list, current_playlist_name):
@@ -866,6 +929,58 @@ class iMusic(QMainWindow):
         layout.addWidget(song_list)
         self.load_songs_from_playlist('精选歌单', song_list)
     
+    """歌词滚动界面布局"""
+    def lyricUI(self, lyric_widget):
+        lyric_layout = QVBoxLayout(lyric_widget)
+        
+        for _ in range(7):
+            label = QLabel()
+            label.setAlignment(Qt.AlignCenter)
+            self.labels.append(label)
+            lyric_layout.addWidget(label)
+
+        self.labels[3].setStyleSheet("color: #FF4081; font-size: 16px;")
+    def parse_lrc(self, lrc_path):
+        self.lyrics_dict.clear()
+        try:
+            with open(lrc_path, 'r', encoding='utf-8') as f:
+                lrc_content = f.read()
+
+            pattern = r'\[(\d{2}):(\d{2})\.(\d{2})\](.*)'
+            matches = re.findall(pattern, lrc_content)
+            
+            for match in matches:
+                minutes, seconds, milliseconds = map(int, match[0:3])
+                timestamp = minutes * 60 + seconds + milliseconds / 100 - 1
+                lyrics = match[3].strip()
+                if lyrics:
+                    self.lyrics_dict[timestamp] = lyrics
+            
+            self.lyrics_dict = dict(sorted(self.lyrics_dict.items()))
+        except Exception as e:
+            print(f"解析歌词文件出错: {str(e)}")
+    def update_lyrics(self):
+        if not self.lyrics_dict:
+            return
+        
+        current_timestamp = None
+        for timestamp in self.lyrics_dict.keys():
+            if timestamp > self.current_time:
+                break
+            current_timestamp = timestamp
+        if current_timestamp is None:
+            return
+        
+        timestamps = list(self.lyrics_dict.keys())
+        current_index = timestamps.index(current_timestamp)
+        
+        for i in range(7):
+            index = current_index - 3 + i
+            if 0 <= index < len(timestamps):
+                self.labels[i].setText(self.lyrics_dict[timestamps[index]])
+            else:
+                self.labels[i].setText("")
+
     """删除从歌单选中的歌曲并更新到数据库表"""
     def delete_song_in_playlist(self, song_list, current_playlist_name):
         selected_item = song_list.currentItem()
@@ -937,24 +1052,58 @@ class iMusic(QMainWindow):
         print(f"歌单 '{playlist_name}' 删除成功")
         self.display(self.stack.indexOf(self.homepage))
     
-    """进度条控制"""
+    # """进度条控制"""
+    # def update_progress(self):
+    #     if self.is_playing and self.is_dragging == False:
+    #         self.current_time = self.current_pos / 1000
+    #         progress_percentage = (self.current_time / self.song_duration) * 1000
+    #         self.progress_bar.setValue(int(progress_percentage))
+    #         print(self.current_pos, self.current_time, self.song_duration)
+
+    # def change_song_progress(self):
+    #     new_value = self.progress_bar.value()
+    #     self.current_time = (new_value / 1000) * self.song_duration
+    #     self.current_pos = self.current_time * 1000
+    #     pygame.mixer.music.set_pos(self.current_time)
+    # def on_progress_bar_drag_start(self):
+    #     self.is_dragging = True
+    #     self.progress_timer.stop()
+    # def on_progress_bar_drag_end(self):
+    #     self.is_dragging = False
+    #     self.change_song_progress()
+    #     self.progress_timer.start(1000)
+        """进度条控制"""
+    
+    """歌曲播放时更新进度条以及拖动进度条可控制歌曲播放进度"""
     def update_progress(self):
         if self.is_playing and self.is_dragging == False:
             self.current_time = self.current_pos / 1000
             progress_percentage = (self.current_time / self.song_duration) * 1000
             self.progress_bar.setValue(int(progress_percentage))
+            self.current_pos += 1000
     def change_song_progress(self):
         new_value = self.progress_bar.value()
         self.current_time = (new_value / 1000) * self.song_duration
+
+        if pygame.mixer.music.get_busy():
+            pygame.mixer.music.set_pos(self.current_time)
+        else:
+            print("音乐不在播放状态，重新开始播放")
+            pygame.mixer.music.play(start=self.current_time)
+
         self.current_pos = self.current_time * 1000
-        pygame.mixer.music.set_pos(self.current_time)
+        print(self.current_pos)
     def on_progress_bar_drag_start(self):
         self.is_dragging = True
         self.progress_timer.stop()
     def on_progress_bar_drag_end(self):
         self.is_dragging = False
-        self.change_song_progress()
+        if not pygame.mixer.music.get_busy():
+            pygame.mixer.music.play(start=self.current_time)
+        else:
+            self.change_song_progress()
         self.progress_timer.start(1000)
+
 
     """上一首/下一首/播放暂停 控制"""
     def play_prev_song(self):
@@ -1042,6 +1191,7 @@ class iMusic(QMainWindow):
     """音量控制"""
     def volumn_control(self):
         pass
+
 
 if __name__ in "__main__":
     app = QApplication(sys.argv)
