@@ -55,7 +55,7 @@ class iMusic(QMainWindow):
         self.is_connected = False
         self.play_lists = []
         self.recommends = ["An Evening With Silk Sonic", 
-                           "Kind Of Blue", "Wave", "梦想家", "APT"]
+                           "Kind Of Blue", "La La Land", "梦想家", "APT"]
 
         self.save_dir = "music"
         self.MusicApi = None
