@@ -109,7 +109,15 @@ class MusicApi_wyy(MusicApi):
             download_url = ret['data'][0]['url']
         except Exception as e:
             download_url = self.__get_wyy_url(music_id)
-        return download_url
+        
+        song_url = f'http://music.163.com/api/song/detail/?id={music_id}&ids=%5B{music_id}%5D'
+        try:
+            song_ret = requests.get(song_url, headers=self.headers).json()
+            title = song_ret['songs'][0]['name']
+        except Exception:
+            title = 'Unknown'
+            
+        return [download_url, title]
     
     def __get_wyy_url(self, music_id):
         """

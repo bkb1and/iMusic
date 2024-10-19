@@ -44,6 +44,7 @@ class iMusic(QMainWindow):
         self.next_filepath = None
         self.is_playing = False
         self.is_dragging = False
+        self.is_connected = False
         self.play_lists = []
 
         self.save_dir = "music"
@@ -58,6 +59,11 @@ class iMusic(QMainWindow):
         self.progress_timer = QTimer(self)
         self.progress_bar = QSlider(Qt.Horizontal)
         self.lyric_timer = QTimer(self)
+
+        self.lyric_page = QWidget()
+        self.lyricUI(self.lyric_page)
+        self.lyric_page.setObjectName("lyric_page")
+        self.stack.addWidget(self.lyric_page)
 
         pygame.mixer.init()
 
@@ -591,11 +597,17 @@ class iMusic(QMainWindow):
     """弹出QFileDialog来选中并导入本地存在的音频媒体文件"""
     def add_song(self, song_list, playlist_name):
         file_path, _ = QFileDialog.getOpenFileName(self, "选择歌曲文件", "", "Audio Files (*.mp3 *.wav *.flac *.m4a)")
-        print(file_path)
         if file_path:
             title = file_path.split('/')[-1]
             self.add_song_to_playlist(playlist_name, title, '', '', file_path)
             song_list.addItem(title)
+            # self.load_lyrics_pages_from_db()
+
+            # song_name = title
+            # new_lyric_page = QWidget()
+            # new_lyric_page.setObjectName(song_name)
+            # self.lyricUI(new_lyric_page)
+            # self.stack.addWidget(new_lyric_page)
 
     """把导入的歌的相关信息存到数据库中对应的歌单的表"""
     def add_song_to_playlist(self, playlist_name, title, artist, album, filepath):
@@ -615,7 +627,6 @@ class iMusic(QMainWindow):
             print("No table found for playlist:", playlist_name)
             return
 
-        # 将歌曲信息插入到对应的歌单表中
         query.prepare(f"""
             INSERT INTO {table_name} (title, artist, album, filepath)
             VALUES (?, ?, ?, ?)
@@ -711,37 +722,43 @@ class iMusic(QMainWindow):
 
     """利用pygame模块中的方法播放音频媒体文件"""
     def play_song(self, filepath):
-        print(filepath)
         pygame.mixer.music.load(filepath)
         pygame.mixer.music.play()
+
         self.progress_timer.start(1000)
         self.is_playing = True
         self.song_duration = pygame.mixer.Sound(filepath).get_length()
         self.song_title.setText(self.current_song_title)
         self.artist_name.setText(self.current_song_artist)
-        print("Music is playing...")
+        self.current_time = 0
+        self.current_pos = 0
+        
+        if self.is_connected:
+            self.lyric_timer.disconnect()
+            self.is_connected = False
 
-        current_lyric_path = self.current_filepath.rsplit('.', 1)[0] + '.lrc'
+        base_title, _ = os.path.splitext(self.current_song_title)
+        current_lyric_path = f"lyrics/{base_title}.lrc"
         self.parse_lrc(current_lyric_path)
 
-
-        """先查找在lyrics数据表中是否已经存在创建过歌词界面的歌"""
-        query = QSqlQuery(self.db)
-        query.prepare("SELECT song_name FROM lyrics WHERE song_name = ?")
-        query.addBindValue(self.current_song_title)
-        query.exec_()
-        if query.next():
-            return
+        # """先查找在lyrics数据表中是否已经存在创建过歌词界面的歌"""
+        # query = QSqlQuery(self.db)
+        # query.prepare("SELECT song_name FROM lyrics WHERE song_name = ?")
+        # query.addBindValue(self.current_song_title)
+        # query.exec_()
+        # if query.next():
+        #     return
         
-        query.prepare("INSERT INTO lyrics (song_name) VALUES (?)")
-        query.addBindValue(self.current_song_title)
-        query.exec_()
+        # query.prepare("INSERT INTO lyrics (song_name) VALUES (?)")
+        # query.addBindValue(self.current_song_title)
+        # query.exec_()
 
 
-        new_lyric_page = QWidget()
-        new_lyric_page.setObjectName(self.current_song_title)
-        self.lyricUI(new_lyric_page)
-        self.stack.addWidget(new_lyric_page)
+        # new_lyric_page = QWidget()
+        # new_lyric_page.setObjectName(self.current_song_title)
+        # self.lyricUI(new_lyric_page)
+        # self.stack.addWidget(new_lyric_page)
+        # print("new lyric page created")
 
     """创建新的歌单后在数据库内创建对应的新的歌单的数据表"""
     def create_table_new_playlist(self, playlist_name):
@@ -796,10 +813,11 @@ class iMusic(QMainWindow):
 
     """创建新的歌词页面"""
     def display_lyric_page(self):
-        self.lyric_timer.start(10)
-        self.lyric_timer.timeout.connect(self.update_lyrics)
-        self.update_lyrics()
-        self.display(self.stack.indexOf(self.findChild(QWidget, self.current_song_title)))
+        if not self.is_connected:
+            self.lyric_timer.start(10)
+            self.lyric_timer.timeout.connect(self.update_lyrics)
+            self.is_connected = True
+        self.display(self.stack.indexOf(self.findChild(QWidget, "lyric_page")))
 
     """在创建新的歌单之后在左侧边栏添加一个新的按钮"""
     def add_playlist_button(self, playlist_name, new_playlist_page):
@@ -953,12 +971,12 @@ class iMusic(QMainWindow):
             with open(lrc_path, 'r', encoding='utf-8') as f:
                 lrc_content = f.read()
 
-            pattern = r'\[(\d{2}):(\d{2})\.(\d{2})\](.*)'
+            pattern = r'\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)'
             matches = re.findall(pattern, lrc_content)
             
             for match in matches:
                 minutes, seconds, milliseconds = map(int, match[0:3])
-                timestamp = minutes * 60 + seconds + milliseconds / 100 - 1
+                timestamp = minutes * 60 + seconds + milliseconds / 1000 - 1
                 lyrics = match[3].strip()
                 if lyrics:
                     self.lyrics_dict[timestamp] = lyrics
@@ -979,7 +997,7 @@ class iMusic(QMainWindow):
             return
         
         timestamps = list(self.lyrics_dict.keys())
-        current_index = timestamps.index(current_timestamp)
+        current_index = timestamps.index(current_timestamp);
         
         for i in range(7):
             index = current_index - 3 + i
@@ -1099,7 +1117,7 @@ class iMusic(QMainWindow):
             pygame.mixer.music.play(start=self.current_time)
 
         self.current_pos = self.current_time * 1000
-        print(self.current_pos)
+        # print(self.current_pos)
     def on_progress_bar_drag_start(self):
         self.is_dragging = True
         self.progress_timer.stop()
@@ -1204,13 +1222,13 @@ class iMusic(QMainWindow):
         song_id = self.search_box.text()
         # print(song_id)
         self.MusicApi = MusicApi_wyy(song_id)
-        music_url = self.MusicApi.get_wyy_url(song_id)
+        music_url, title = self.MusicApi.get_wyy_url(song_id)[0], self.MusicApi.get_wyy_url(song_id)[1]
         # print(url)
-        with open(f"musics/{song_id}.mp3", 'wb') as f:
+        with open(f"musics/{title}.mp3", 'wb') as f:
             f.write(requests.get(music_url, stream=True).content)
 
         lyric_content = self.MusicApi.get_wyy_lrc(song_id)
-        with open(f"lyrics/{song_id}.lrc", 'w', encoding='utf-8') as f:
+        with open(f"lyrics/{title}.lrc", 'w', encoding='utf-8') as f:
             f.write(lyric_content)
         
 if __name__ in "__main__":
