@@ -3,7 +3,7 @@ import os
 import pygame
 import re
 import requests
-from musicapi import MusicApi, MusicApi_wyy
+from musicapi import MusicApi_wyy
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -14,7 +14,6 @@ from PyQt5.QtWidgets import (
     QLabel,
     QListWidget,
     QLineEdit,
-    QScrollArea,
     QFrame,
     QGridLayout,
     QSlider,
@@ -24,9 +23,9 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QInputDialog
 )
-from PyQt5.QtCore import Qt, QSize, QTimer
-from PyQt5.QtSql import QSqlDatabase, QSqlQuery, QSqlError
-from PyQt5.QtGui import QIcon, QPixmap, QColor, QPalette
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtSql import QSqlDatabase, QSqlQuery
+from PyQt5.QtGui import QPixmap
 
 class iMusic(QMainWindow):
     def __init__(self):
@@ -381,7 +380,7 @@ class iMusic(QMainWindow):
         player_layout.addLayout(controls_layout)
 
         master_master_layout.addLayout(master_layout)
-        master_master_layout.addWidget(player_control)     
+        master_master_layout.addWidget(player_control)
 
     """主页和推荐页面的布局"""
     def homepageUI(self):
@@ -1200,14 +1199,19 @@ class iMusic(QMainWindow):
     def volumn_control(self):
         pass
 
+    """实现通过id将网易云音源下载到本地"""
     def download_music_and_lyrics(self):
         song_id = self.search_box.text()
         # print(song_id)
         self.MusicApi = MusicApi_wyy(song_id)
-        url = self.MusicApi.get_wyy_url(song_id)
+        music_url = self.MusicApi.get_wyy_url(song_id)
         # print(url)
-        with open(f"music/{song_id}.mp3", 'wb') as f:
-            f.write(requests.get(url, stream=True).content)
+        with open(f"musics/{song_id}.mp3", 'wb') as f:
+            f.write(requests.get(music_url, stream=True).content)
+
+        lyric_content = self.MusicApi.get_wyy_lrc(song_id)
+        with open(f"lyrics/{song_id}.lrc", 'w', encoding='utf-8') as f:
+            f.write(lyric_content)
         
 if __name__ in "__main__":
     app = QApplication(sys.argv)
