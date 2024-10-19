@@ -2,6 +2,8 @@ import sys
 import os
 import pygame
 import re
+import requests
+from musicapi import MusicApi, MusicApi_wyy
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -44,6 +46,9 @@ class iMusic(QMainWindow):
         self.is_playing = False
         self.is_dragging = False
         self.play_lists = []
+
+        self.save_dir = "music"
+        self.MusicApi = None
 
         self.lyrics_dict = {}
         self.labels = []
@@ -253,10 +258,15 @@ class iMusic(QMainWindow):
         """顶部操作栏"""
         top_bar_layout = QHBoxLayout()
         # 搜索栏
-        search_box = QLineEdit()
-        search_box.setPlaceholderText("🔍 搜索音乐，歌手，歌词，用户")
-        search_box.setFixedWidth(250)
-        top_bar_layout.addWidget(search_box)
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("🔍 搜索音乐")
+        self.search_box.setFixedWidth(250)
+
+        download_btn = QPushButton("↓")
+        download_btn.clicked.connect(self.download_music_and_lyrics)
+
+        top_bar_layout.addWidget(self.search_box)
+        top_bar_layout.addWidget(download_btn)
         top_bar_layout.addStretch()
 
         content_layout.addLayout((top_bar_layout))
@@ -792,8 +802,6 @@ class iMusic(QMainWindow):
         self.update_lyrics()
         self.display(self.stack.indexOf(self.findChild(QWidget, self.current_song_title)))
 
-
-
     """在创建新的歌单之后在左侧边栏添加一个新的按钮"""
     def add_playlist_button(self, playlist_name, new_playlist_page):
         if playlist_name == "精选歌单":
@@ -1192,7 +1200,15 @@ class iMusic(QMainWindow):
     def volumn_control(self):
         pass
 
-
+    def download_music_and_lyrics(self):
+        song_id = self.search_box.text()
+        # print(song_id)
+        self.MusicApi = MusicApi_wyy(song_id)
+        url = self.MusicApi.get_wyy_url(song_id)
+        # print(url)
+        with open(f"music/{song_id}.mp3", 'wb') as f:
+            f.write(requests.get(url, stream=True).content)
+        
 if __name__ in "__main__":
     app = QApplication(sys.argv)
     main = iMusic()
