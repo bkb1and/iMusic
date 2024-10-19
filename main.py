@@ -23,9 +23,17 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QInputDialog
 )
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtSql import QSqlDatabase, QSqlQuery
 from PyQt5.QtGui import QPixmap
+
+class ClickableLabel(QLabel):
+    clicked = pyqtSignal()  # 自定义信号
+    
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
 
 class iMusic(QMainWindow):
     def __init__(self):
@@ -46,6 +54,8 @@ class iMusic(QMainWindow):
         self.is_dragging = False
         self.is_connected = False
         self.play_lists = []
+        self.recommends = ["An Evening With Silk Sonic", 
+                           "Kind Of Blue", "Wave", "梦想家", "APT"]
 
         self.save_dir = "music"
         self.MusicApi = None
@@ -70,6 +80,7 @@ class iMusic(QMainWindow):
         self.create_db()
         self.init_ui()
         self.load_playlists_from_db()
+        self.init_recommends_pages()
         self.load_lyrics_pages_from_db()
     
     """初始化ui"""
@@ -437,7 +448,7 @@ class iMusic(QMainWindow):
             """)
             playlist_layout = QVBoxLayout(playlist_frame)
 
-            cover = QLabel("封面")
+            cover = ClickableLabel()
             cover.setAlignment(Qt.AlignCenter)
             cover.setStyleSheet("""
                 background-color: #e1e1e1;
@@ -446,8 +457,15 @@ class iMusic(QMainWindow):
                 font-size: 18px;
             """)
             cover.setFixedHeight(150)
+            cover.setFixedWidth(150)
+            cover.setScaledContents(True)
+            cover.setPixmap(QPixmap(f"imgs/recommends/{i}.jpg"))
+            cover.setEnabled(True)
+            cover.setCursor(Qt.PointingHandCursor)
+            cover.setMouseTracking(True)
+            cover.clicked.connect(lambda i=i: self.display(self.stack.indexOf(self.findChild(QWidget, self.recommends[i]))))
 
-            title = QLabel(f"推荐歌单 {i+1}")
+            title = QLabel(self.recommends[i])
             title.setStyleSheet("""
                 font-size: 14px;
                 color: #333333;
@@ -587,6 +605,7 @@ class iMusic(QMainWindow):
                 table_name TEXT
             )
         """)
+
         query.exec_("""
             CREATE TABLE IF NOT EXISTS lyrics (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -601,17 +620,9 @@ class iMusic(QMainWindow):
             title = file_path.split('/')[-1]
             self.add_song_to_playlist(playlist_name, title, '', '', file_path)
             song_list.addItem(title)
-            # self.load_lyrics_pages_from_db()
-
-            # song_name = title
-            # new_lyric_page = QWidget()
-            # new_lyric_page.setObjectName(song_name)
-            # self.lyricUI(new_lyric_page)
-            # self.stack.addWidget(new_lyric_page)
 
     """把导入的歌的相关信息存到数据库中对应的歌单的表"""
     def add_song_to_playlist(self, playlist_name, title, artist, album, filepath):
-        # 先从 playlists 表获取歌单对应的表名
         query = QSqlQuery(self.db)
         query.prepare("SELECT table_name FROM playlists WHERE name = ?")
         query.addBindValue(playlist_name)
@@ -670,6 +681,7 @@ class iMusic(QMainWindow):
         selected_item = song_list.currentItem()
         if selected_item:
             title = selected_item.text()
+            print(title)
             
             """获取当前播放列表的表名"""
             query = QSqlQuery(self.db)
@@ -741,25 +753,6 @@ class iMusic(QMainWindow):
         current_lyric_path = f"lyrics/{base_title}.lrc"
         self.parse_lrc(current_lyric_path)
 
-        # """先查找在lyrics数据表中是否已经存在创建过歌词界面的歌"""
-        # query = QSqlQuery(self.db)
-        # query.prepare("SELECT song_name FROM lyrics WHERE song_name = ?")
-        # query.addBindValue(self.current_song_title)
-        # query.exec_()
-        # if query.next():
-        #     return
-        
-        # query.prepare("INSERT INTO lyrics (song_name) VALUES (?)")
-        # query.addBindValue(self.current_song_title)
-        # query.exec_()
-
-
-        # new_lyric_page = QWidget()
-        # new_lyric_page.setObjectName(self.current_song_title)
-        # self.lyricUI(new_lyric_page)
-        # self.stack.addWidget(new_lyric_page)
-        # print("new lyric page created")
-
     """创建新的歌单后在数据库内创建对应的新的歌单的数据表"""
     def create_table_new_playlist(self, playlist_name):
         """创建歌单时动态生成数据表"""
@@ -770,7 +763,6 @@ class iMusic(QMainWindow):
 
         """在客户端启动载入已有歌单时，增加检查逻辑，如果数据库中已经存在同样名字的表，那么不创建新的表直接返回"""
         query.exec_(f"SELECT name FROM playlists WHERE name='{playlist_name}';")
-        
         if query.next():
             return
 
@@ -821,7 +813,7 @@ class iMusic(QMainWindow):
 
     """在创建新的歌单之后在左侧边栏添加一个新的按钮"""
     def add_playlist_button(self, playlist_name, new_playlist_page):
-        if playlist_name == "精选歌单":
+        if playlist_name == "精选歌单" or playlist_name in self.recommends:
             return
         button = QPushButton(f"🎵 {playlist_name}")
         button.setStyleSheet("""
@@ -845,6 +837,8 @@ class iMusic(QMainWindow):
         
         while query.next():
             playlist_name = query.value(0)
+            if playlist_name in self.recommends:
+                return
             new_playlist_page = QWidget()
             new_playlist_page.setObjectName(playlist_name)
             self.playlistUI_template(playlist_name, new_playlist_page)
@@ -890,12 +884,8 @@ class iMusic(QMainWindow):
                 
     """切换下一张图片"""
     def show_next_image(self, banner):
-        # 获取当前图片路径
-        image_path = self.images[self.current_image_index]
-        # 加载图片并设置到 QLabel
-        pixmap = QPixmap(image_path)
+        pixmap = QPixmap(self.images[self.current_image_index])
         banner.setPixmap(pixmap.scaled(banner.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        # 更新图片索引
         self.current_image_index = (self.current_image_index + 1) % len(self.images)
 
     """精选页面的布局"""
@@ -953,6 +943,88 @@ class iMusic(QMainWindow):
 
         layout.addWidget(song_list)
         self.load_songs_from_playlist('精选歌单', song_list)
+    
+    """五个推荐专辑的布局"""
+    def recommendUI(self, rec_widget, i):
+        layout = QVBoxLayout(rec_widget)
+        header_layout = QHBoxLayout()
+        
+        """歌单封面"""
+        cover_label = QLabel()
+        cover_label.setFixedSize(150, 150)
+        cover_label.setStyleSheet("""
+            background-color: #e1e1e1;
+            border-radius: 10px;
+        """)
+        cover_label.setScaledContents(True)
+        cover_label.setPixmap(QPixmap(f"imgs/recommends/{i}.jpg"))
+        header_layout.addWidget(cover_label)
+        
+        info_layout = QVBoxLayout()
+        
+        """歌单标题"""
+        playlist_title = QLabel(self.recommends[i])
+        playlist_title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        info_layout.addWidget(playlist_title)
+        
+        """歌曲列表"""
+        song_list = QListWidget()
+        self.create_table_new_playlist(self.recommends[i])
+        table_name = f"playlist_{self.recommends[i].replace(' ', '_')}"
+        query = QSqlQuery(self.db)
+        query.prepare(f"INSERT INTO {table_name} (title, artist, album, filepath) VALUES (?, ?, ?, ?)")
+        file_path = f"D:/C/iMusic/musics/recommends/{self.recommends[i]}/"            
+        for filename in os.listdir(file_path):
+            if filename.endswith(('.mp3', '.wav', '.flac')):
+                filepath = os.path.join(file_path, filename)
+
+                check_query = QSqlQuery(self.db)
+                check_query.prepare(f"SELECT COUNT(*) FROM {table_name} WHERE title = ? AND filepath = ?")
+                check_query.addBindValue(filename)
+                check_query.addBindValue(filepath)
+                check_query.exec_()
+                check_query.next()
+                count = check_query.value(0)
+
+                if count == 0:
+                    query.addBindValue(filename)
+                    query.addBindValue("")
+                    query.addBindValue("")
+                    query.addBindValue(filepath)
+                    query.exec_()
+
+
+
+        """按钮"""
+        play_button = QPushButton("播放歌曲")
+        play_button.setStyleSheet("""
+            QPushButton {
+                background-color: #e1e1e1;
+                color: #333;
+                padding: 6px 12px;
+                font-size: 14px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #c6c6c6;
+            }
+        """)
+
+        info_layout.addWidget(play_button)
+        
+        play_button.clicked.connect(lambda: self.play_selected_song(song_list, self.recommends[i]))
+
+        header_layout.addLayout(info_layout)
+        layout.addLayout(header_layout)
+
+        """分割线"""
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(line)
+
+        layout.addWidget(song_list)
+        self.load_songs_from_playlist(self.recommends[i], song_list)
     
     """歌词滚动界面布局"""
     def lyricUI(self, lyric_widget):
@@ -1220,17 +1292,23 @@ class iMusic(QMainWindow):
     """实现通过id将网易云音源下载到本地"""
     def download_music_and_lyrics(self):
         song_id = self.search_box.text()
-        # print(song_id)
         self.MusicApi = MusicApi_wyy(song_id)
         music_url, title = self.MusicApi.get_wyy_url(song_id)[0], self.MusicApi.get_wyy_url(song_id)[1]
-        # print(url)
         with open(f"musics/{title}.mp3", 'wb') as f:
             f.write(requests.get(music_url, stream=True).content)
 
         lyric_content = self.MusicApi.get_wyy_lrc(song_id)
         with open(f"lyrics/{title}.lrc", 'w', encoding='utf-8') as f:
             f.write(lyric_content)
-        
+    
+    """实现点击推荐专辑跳转至对应歌单"""
+    def init_recommends_pages(self):
+        for i in range(5):
+            rec_page = QWidget()
+            rec_page.setObjectName(self.recommends[i])
+            self.recommendUI(rec_page, i)
+            self.stack.addWidget(rec_page)
+
 if __name__ in "__main__":
     app = QApplication(sys.argv)
     main = iMusic()
