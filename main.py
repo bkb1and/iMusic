@@ -39,6 +39,7 @@ class iMusic(QMainWindow):
     def __init__(self):
         super().__init__()
         self.db = None
+        self.current_volumn = 50
         self.current_table_name = None
         self.current_filepath = None
         self.current_song_title = None
@@ -388,11 +389,14 @@ class iMusic(QMainWindow):
         controls_layout.addStretch()
         
         # 音量控制
-        volume_slider = QSlider(Qt.Horizontal)
-        volume_slider.setFixedWidth(100)
-        volume_slider.setValue(50)
+        self.volumn_slider = QSlider(Qt.Horizontal)
+        self.volumn_slider.setRange(0, 1000)
+        self.volumn_slider.setFixedWidth(100)
+        self.volumn_slider.setValue(500)
+        self.volumn_slider.sliderPressed.connect(self.on_volumn_slider_drag_start)
+        self.volumn_slider.sliderReleased.connect(self.on_volumn_slider_drag_end)
         controls_layout.addWidget(QLabel("🔊"))
-        controls_layout.addWidget(volume_slider)
+        controls_layout.addWidget(self.volumn_slider)
         
         player_layout.addLayout(controls_layout)
 
@@ -1148,29 +1152,7 @@ class iMusic(QMainWindow):
 
         print(f"歌单 '{playlist_name}' 删除成功")
         self.display(self.stack.indexOf(self.homepage))
-    
-    # """进度条控制"""
-    # def update_progress(self):
-    #     if self.is_playing and self.is_dragging == False:
-    #         self.current_time = self.current_pos / 1000
-    #         progress_percentage = (self.current_time / self.song_duration) * 1000
-    #         self.progress_bar.setValue(int(progress_percentage))
-    #         print(self.current_pos, self.current_time, self.song_duration)
-
-    # def change_song_progress(self):
-    #     new_value = self.progress_bar.value()
-    #     self.current_time = (new_value / 1000) * self.song_duration
-    #     self.current_pos = self.current_time * 1000
-    #     pygame.mixer.music.set_pos(self.current_time)
-    # def on_progress_bar_drag_start(self):
-    #     self.is_dragging = True
-    #     self.progress_timer.stop()
-    # def on_progress_bar_drag_end(self):
-    #     self.is_dragging = False
-    #     self.change_song_progress()
-    #     self.progress_timer.start(1000)
-        """进度条控制"""
-    
+        
     """歌曲播放时更新进度条以及拖动进度条可控制歌曲播放进度"""
     def update_progress(self):
         if self.is_playing and self.is_dragging == False:
@@ -1189,7 +1171,6 @@ class iMusic(QMainWindow):
             pygame.mixer.music.play(start=self.current_time)
 
         self.current_pos = self.current_time * 1000
-        # print(self.current_pos)
     def on_progress_bar_drag_start(self):
         self.is_dragging = True
         self.progress_timer.stop()
@@ -1287,7 +1268,15 @@ class iMusic(QMainWindow):
 
     """音量控制"""
     def volumn_control(self):
-        pass
+        if not self.is_dragging:
+            volumn_percentage = self.volumn_slider.value() / 1000
+            self.current_volumn = volumn_percentage * 1
+            pygame.mixer.music.set_volume(self.current_volumn)
+    def on_volumn_slider_drag_start(self):
+        self.is_dragging = True
+    def on_volumn_slider_drag_end(self):
+        self.is_dragging = False
+        self.volumn_control()
 
     """实现通过id将网易云音源下载到本地"""
     def download_music_and_lyrics(self):
