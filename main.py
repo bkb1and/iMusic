@@ -276,7 +276,7 @@ class iMusic(QMainWindow):
         top_bar_layout = QHBoxLayout()
         # 搜索栏
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("🔍 搜索音乐")
+        self.search_box.setPlaceholderText("🔍输入id后单击左侧“↓”下载")
         self.search_box.setFixedWidth(250)
 
         download_btn = QPushButton("↓")
@@ -1258,12 +1258,12 @@ class iMusic(QMainWindow):
         if(self.is_playing):
             pygame.mixer.music.pause()
             self.is_playing = False
-            self.progress_timer.stop()
+            # self.progress_timer.stop()
             print(f"播放暂停")
         else:
             pygame.mixer.music.unpause()
             self.is_playing = True
-            self.progress_timer.start(100)
+            # self.progress_timer.start(100)
             print(f"播放继续")
 
     """音量控制"""
