@@ -754,7 +754,7 @@ class iMusic(QMainWindow):
 
         table_name = "playlist_最近播放"
         query = QSqlQuery(self.db)
-        
+
         check_query = QSqlQuery(self.db)
         check_query.prepare(f"""
             SELECT COUNT(*) FROM {table_name} 
@@ -853,7 +853,7 @@ class iMusic(QMainWindow):
 
     """在创建新的歌单之后在左侧边栏添加一个新的按钮"""
     def add_playlist_button(self, playlist_name, new_playlist_page):
-        if playlist_name == "精选歌单" or playlist_name in self.recommends or playlist_name == "最近播放":
+        if playlist_name == "精选歌单" or playlist_name in self.recommends:
             return
         button = QPushButton(f"🎵 {playlist_name}")
         button.setStyleSheet("""
@@ -877,8 +877,8 @@ class iMusic(QMainWindow):
         
         while query.next():
             playlist_name = query.value(0)
-            if playlist_name in self.recommends:
-                return
+            if playlist_name in self.recommends or playlist_name == "最近播放":
+                continue
             new_playlist_page = QWidget()
             new_playlist_page.setObjectName(playlist_name)
             self.playlistUI_template(playlist_name, new_playlist_page)
