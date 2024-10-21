@@ -3,6 +3,7 @@ import os
 import pygame
 import re
 import requests
+import random
 from musicapi import MusicApi_wyy
 from PyQt5.QtWidgets import (
     QApplication,
@@ -26,7 +27,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtSql import QSqlDatabase, QSqlQuery
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QIcon
 
 class ClickableLabel(QLabel):
     clicked = pyqtSignal()  # 自定义信号
@@ -89,6 +90,7 @@ class iMusic(QMainWindow):
     def init_ui(self):
         """全局样式"""
         self.setWindowTitle("iMusic")
+        self.setWindowIcon(QIcon("imgs/title.png"))
         self.setMinimumSize(1600, 900)
         self.setStyleSheet("""
             QMainWindow {
@@ -237,6 +239,8 @@ class iMusic(QMainWindow):
             my_music_layout.addWidget(button)
             if button_text == "最近播放":
                 button.clicked.connect(lambda: self.display(self.stack.indexOf(self.recently_played)))
+            elif button_text == "我的收藏":
+                button.clicked.connect(lambda: self.display(self.stack.indexOf(self.favourite)))
         left_layout.addLayout(my_music_layout)
 
         """创建的歌单"""
@@ -307,8 +311,10 @@ class iMusic(QMainWindow):
         self.recently_playedUI()
         self.stack.addWidget(self.recently_played)
 
-
-
+        """我的收藏"""
+        self.favourite = QWidget()
+        self.favouriteUI()
+        self.stack.addWidget(self.favourite)
 
     
         """底部区域"""
@@ -1008,7 +1014,89 @@ class iMusic(QMainWindow):
         layout.addWidget(song_list)
         self.load_songs_from_playlist('精选歌单', song_list)
     
-    """精选页面的布局"""
+    """我的收藏页面的布局"""
+    def favouriteUI(self):
+        layout = QVBoxLayout(self.favourite)
+        header_layout = QHBoxLayout()
+        
+        """歌单封面"""
+        cover_label = QLabel()
+        cover_label.setFixedSize(150, 150)
+        cover_label.setScaledContents(True)
+        cover_label.setPixmap(QPixmap("imgs/favourite.png"))
+        cover_label.setStyleSheet("""
+            background-color: #FFFFFF;
+            border-radius: 10px;
+        """)
+        header_layout.addWidget(cover_label)
+
+        info_layout = QVBoxLayout()
+        
+        """歌单标题"""
+        playlist_title = QLabel('我的收藏')
+        playlist_title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        info_layout.addWidget(playlist_title)
+
+        song_list = QListWidget()
+        header_layout.addLayout(info_layout)
+        layout.addLayout(header_layout)
+
+        """分割线"""
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(line)
+
+        # 推荐歌单网格
+        playlist_grid = QGridLayout()
+        # playlist_grid.addStretch(1)
+        playlist_grid.setSpacing(20)
+        for i in random.sample(range(0, 4), 3):
+            playlist_frame = QFrame()
+            playlist_frame.setStyleSheet("""
+                QFrame {
+                    background-color: white;
+                    border-radius: 5px;
+                }
+                QFrame:hover {
+                    background-color: #f5f5f5;
+                }
+            """)
+            playlist_layout = QVBoxLayout(playlist_frame)
+
+            cover = ClickableLabel()
+            cover.setAlignment(Qt.AlignCenter)
+            cover.setStyleSheet("""
+                background-color: #e1e1e1;
+                border-radius: 5px;
+                color: white;
+                font-size: 18px;
+            """)
+            cover.setFixedHeight(150)
+            cover.setFixedWidth(150)
+            cover.setScaledContents(True)
+            cover.setPixmap(QPixmap(f"imgs/recommends/{i}.jpg"))
+            cover.setEnabled(True)
+            cover.setCursor(Qt.PointingHandCursor)
+            cover.setMouseTracking(True)
+            cover.clicked.connect(lambda i=i: self.display(self.stack.indexOf(self.findChild(QWidget, self.recommends[i]))))
+
+            title = QLabel(self.recommends[i])
+            title.setStyleSheet("""
+                font-size: 14px;
+                color: #333333;
+                margin-top: 5px;
+            """)
+            title.setWordWrap(True)
+
+            playlist_layout.addWidget(cover)
+            playlist_layout.addWidget(title)
+            playlist_grid.addWidget(playlist_frame, i // 5, i % 5)
+
+        layout.addLayout(playlist_grid)
+        layout.addWidget(song_list)
+
+    """最近播放页面的布局"""
     def recently_playedUI(self):
         layout = QVBoxLayout(self.recently_played)
         header_layout = QHBoxLayout()
@@ -1016,8 +1104,10 @@ class iMusic(QMainWindow):
         """歌单封面"""
         cover_label = QLabel()
         cover_label.setFixedSize(150, 150)
+        cover_label.setScaledContents(True)
+        cover_label.setPixmap(QPixmap("imgs/recently_played.png"))
         cover_label.setStyleSheet("""
-            background-color: #e1e1e1;
+            background-color: #FFFFFF;
             border-radius: 10px;
         """)
         header_layout.addWidget(cover_label)
