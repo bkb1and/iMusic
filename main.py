@@ -21,7 +21,8 @@ from PyQt5.QtWidgets import (
     QStackedWidget,
     QFileDialog,
     QMessageBox,
-    QInputDialog
+    QInputDialog,
+    QSpacerItem
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtSql import QSqlDatabase, QSqlQuery
@@ -421,11 +422,12 @@ class iMusic(QMainWindow):
         color: #c62f2f;
         """
         )
+        banner.setFixedSize(1000, 900)
         banner.setAlignment(Qt.AlignCenter)
         banner.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
-        layout.addWidget(banner)
+        layout.addWidget(banner, alignment=Qt.AlignCenter)
 
-        self.images = ["icon/1.png", "icon/2.png", "icon/3.png", "icon/4.png", "icon/5.png"]
+        self.images = ["imgs/banners/0.jpg", "imgs/banners/1.jpg", "imgs/banners/2.jpg", "imgs/banners/3.jpg", "imgs/banners/4.jpg"]
         self.current_image_index = 0
 
         self.show_next_image(banner)
@@ -750,6 +752,31 @@ class iMusic(QMainWindow):
         pygame.mixer.music.load(filepath)
         pygame.mixer.music.play()
 
+        table_name = "playlist_最近播放"
+        query = QSqlQuery(self.db)
+        
+        check_query = QSqlQuery(self.db)
+        check_query.prepare(f"""
+            SELECT COUNT(*) FROM {table_name} 
+            WHERE filepath = ?
+        """)
+        check_query.addBindValue(self.current_filepath)
+        check_query.exec_()
+
+        if check_query.next():
+            count = check_query.value(0)         
+            if count == 0:
+                query.prepare(f""" 
+                    INSERT INTO {table_name} (title, artist, album, filepath) 
+                    VALUES (?, ?, ?, ?) 
+                """)
+                query.addBindValue(self.current_song_title)
+                query.addBindValue("")
+                query.addBindValue("")
+                query.addBindValue(self.current_filepath)
+                query.exec_()
+                self.recent_song_list.addItem(self.current_song_title)
+
         self.progress_timer.start(1000)
         self.is_playing = True
         self.song_duration = pygame.mixer.Sound(filepath).get_length()
@@ -826,7 +853,7 @@ class iMusic(QMainWindow):
 
     """在创建新的歌单之后在左侧边栏添加一个新的按钮"""
     def add_playlist_button(self, playlist_name, new_playlist_page):
-        if playlist_name == "精选歌单" or playlist_name in self.recommends:
+        if playlist_name == "精选歌单" or playlist_name in self.recommends or playlist_name == "最近播放":
             return
         button = QPushButton(f"🎵 {playlist_name}")
         button.setStyleSheet("""
@@ -909,6 +936,8 @@ class iMusic(QMainWindow):
         """歌单封面"""
         cover_label = QLabel()
         cover_label.setFixedSize(150, 150)
+        cover_label.setScaledContents(True)
+        cover_label.setPixmap(QPixmap("imgs\selected.jpg"))
         cover_label.setStyleSheet("""
             background-color: #e1e1e1;
             border-radius: 10px;
@@ -925,6 +954,28 @@ class iMusic(QMainWindow):
         """歌曲列表"""
         song_list = QListWidget()
         self.create_table_new_playlist('精选歌单')
+        table_name = "playlist_精选歌单"
+        query = QSqlQuery(self.db)
+        query.prepare(f"INSERT INTO {table_name} (title, artist, album, filepath) VALUES (?, ?, ?, ?)")
+        file_path = f"D:/C/iMusic/musics/selected/"            
+        for filename in os.listdir(file_path):
+            if filename.endswith(('.mp3', '.wav', '.flac')):
+                filepath = os.path.join(file_path, filename)
+
+                check_query = QSqlQuery(self.db)
+                check_query.prepare(f"SELECT COUNT(*) FROM {table_name} WHERE title = ? AND filepath = ?")
+                check_query.addBindValue(filename)
+                check_query.addBindValue(filepath)
+                check_query.exec_()
+                check_query.next()
+                count = check_query.value(0)
+
+                if count == 0:
+                    query.addBindValue(filename)
+                    query.addBindValue("")
+                    query.addBindValue("")
+                    query.addBindValue(filepath)
+                    query.exec_()
 
         """按钮"""
         play_button = QPushButton("播放歌曲")
@@ -979,7 +1030,7 @@ class iMusic(QMainWindow):
         info_layout.addWidget(playlist_title)
         
         """歌曲列表"""
-        song_list = QListWidget()
+        self.recent_song_list = QListWidget()
         self.create_table_new_playlist('最近播放')
 
         """按钮"""
@@ -999,7 +1050,7 @@ class iMusic(QMainWindow):
 
         info_layout.addWidget(play_button)
         
-        play_button.clicked.connect(lambda: self.play_selected_song(song_list, '最近播放'))
+        play_button.clicked.connect(lambda: self.play_selected_song(self.recent_song_list, '最近播放'))
 
         header_layout.addLayout(info_layout)
         layout.addLayout(header_layout)
@@ -1010,8 +1061,8 @@ class iMusic(QMainWindow):
         line.setFrameShadow(QFrame.Sunken)
         layout.addWidget(line)
 
-        layout.addWidget(song_list)
-        self.load_songs_from_playlist('最近播放', song_list)
+        layout.addWidget(self.recent_song_list)
+        self.load_songs_from_playlist('最近播放', self.recent_song_list)
     
     """五个推荐专辑的布局"""
     def recommendUI(self, rec_widget, i):
