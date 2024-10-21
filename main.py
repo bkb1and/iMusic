@@ -184,10 +184,7 @@ class iMusic(QMainWindow):
         """导航按钮"""
         nav_buttons = [
             ("🎵", "推荐"),
-            ("🎙️", "精选"),
-            ("📻", "播客"),
-            ("📺", "漫游"),
-            ("👥", "动态")
+            ("🎙️", "精选")
         ]
         nav_layout = QVBoxLayout()
         for icon, button_text in nav_buttons:
@@ -222,9 +219,7 @@ class iMusic(QMainWindow):
         my_music_layout.addWidget(my_music_label)
         my_music_buttons = [
             ("🎵", "我的收藏"),
-            ("🎵", "最近播放"),
-            ("🎵", "下载管理"),
-            ("🎵", "本地音乐")
+            ("🎵", "最近播放")
         ]
         for icon, button_text in my_music_buttons:
             button = QPushButton(f"{icon} {button_text}")
@@ -239,6 +234,8 @@ class iMusic(QMainWindow):
                 }
             """)
             my_music_layout.addWidget(button)
+            if button_text == "最近播放":
+                button.clicked.connect(lambda: self.display(self.stack.indexOf(self.recently_played)))
         left_layout.addLayout(my_music_layout)
 
         """创建的歌单"""
@@ -303,6 +300,11 @@ class iMusic(QMainWindow):
 
         self.stack.setCurrentWidget(self.homepage)
         master_layout.addWidget(content_area, 8)
+
+        """最近播放"""
+        self.recently_played = QWidget()
+        self.recently_playedUI()
+        self.stack.addWidget(self.recently_played)
 
 
 
@@ -616,6 +618,13 @@ class iMusic(QMainWindow):
                 song_name TEXT
             )
         """)
+
+        # query.exec_("""
+        #     CREATE TABLE IF NOT EXISTS recently_played (
+        #         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        #         song_name TEXT
+        #     )
+        # """)
 
     """弹出QFileDialog来选中并导入本地存在的音频媒体文件"""
     def add_song(self, song_list, playlist_name):
@@ -947,6 +956,62 @@ class iMusic(QMainWindow):
 
         layout.addWidget(song_list)
         self.load_songs_from_playlist('精选歌单', song_list)
+    
+    """精选页面的布局"""
+    def recently_playedUI(self):
+        layout = QVBoxLayout(self.recently_played)
+        header_layout = QHBoxLayout()
+        
+        """歌单封面"""
+        cover_label = QLabel()
+        cover_label.setFixedSize(150, 150)
+        cover_label.setStyleSheet("""
+            background-color: #e1e1e1;
+            border-radius: 10px;
+        """)
+        header_layout.addWidget(cover_label)
+        
+        info_layout = QVBoxLayout()
+        
+        """歌单标题"""
+        playlist_title = QLabel('最近播放')
+        playlist_title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        info_layout.addWidget(playlist_title)
+        
+        """歌曲列表"""
+        song_list = QListWidget()
+        self.create_table_new_playlist('最近播放')
+
+        """按钮"""
+        play_button = QPushButton("播放歌曲")
+        play_button.setStyleSheet("""
+            QPushButton {
+                background-color: #e1e1e1;
+                color: #333;
+                padding: 6px 12px;
+                font-size: 14px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #c6c6c6;
+            }
+        """)
+
+        info_layout.addWidget(play_button)
+        
+        play_button.clicked.connect(lambda: self.play_selected_song(song_list, '最近播放'))
+
+        header_layout.addLayout(info_layout)
+        layout.addLayout(header_layout)
+
+        """分割线"""
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(line)
+
+        layout.addWidget(song_list)
+        self.load_songs_from_playlist('最近播放', song_list)
     
     """五个推荐专辑的布局"""
     def recommendUI(self, rec_widget, i):
