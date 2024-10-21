@@ -40,7 +40,7 @@ python main.py
 
 **5.下载音乐**: 通过输入歌曲 ID 下载网易云音乐中的音乐和歌词。（ID位置如图所示）
 
-![image-20241021210510826](C:\Users\Mumu\AppData\Roaming\Typora\typora-user-images\image-20241021210510826.png)
+![image-20241021210510826](https://github.com/bkb1and/iMusic/blob/main/imgs/example.png)
 
 ## 贡献
 
