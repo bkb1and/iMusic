@@ -937,7 +937,7 @@ class iMusic(QMainWindow):
         cover_label = QLabel()
         cover_label.setFixedSize(150, 150)
         cover_label.setScaledContents(True)
-        cover_label.setPixmap(QPixmap("imgs\selected.jpg"))
+        cover_label.setPixmap(QPixmap("imgs/selected.jpg"))
         cover_label.setStyleSheet("""
             background-color: #e1e1e1;
             border-radius: 10px;
