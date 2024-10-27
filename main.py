@@ -22,13 +22,11 @@ from PyQt5.QtWidgets import (
     QStackedWidget,
     QFileDialog,
     QMessageBox,
-    QInputDialog,
-    QSpacerItem
+    QInputDialog
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtSql import QSqlDatabase, QSqlQuery
 from PyQt5.QtGui import QPixmap, QIcon
-
 class ClickableLabel(QLabel):
     clicked = pyqtSignal()  # 自定义信号
     
@@ -601,7 +599,7 @@ class iMusic(QMainWindow):
     def display(self, i):
         self.stack.setCurrentIndex(i)
 
-    """在第一次启动客户端时建立数据库，后面启动时打开数据库"""
+    #在第一次启动客户端时建立数据库，后面启动时打开数据库
     def create_db(self):
         """建立数据库"""
         self.db = QSqlDatabase.addDatabase("QSQLITE")
@@ -626,13 +624,6 @@ class iMusic(QMainWindow):
                 song_name TEXT
             )
         """)
-
-        # query.exec_("""
-        #     CREATE TABLE IF NOT EXISTS recently_played (
-        #         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        #         song_name TEXT
-        #     )
-        # """)
 
     """弹出QFileDialog来选中并导入本地存在的音频媒体文件"""
     def add_song(self, song_list, playlist_name):
