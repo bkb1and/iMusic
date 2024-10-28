@@ -599,7 +599,7 @@ class iMusic(QMainWindow):
     def display(self, i):
         self.stack.setCurrentIndex(i)
 
-    #在第一次启动客户端时建立数据库，后面启动时打开数据库
+    """在第一次启动客户端时建立数据库，后面启动时打开数据库"""
     def create_db(self):
         """建立数据库"""
         self.db = QSqlDatabase.addDatabase("QSQLITE")
